@@ -6,6 +6,7 @@ import math
 import cv2
 import random
 import csv
+import string
 
 class Job:
     SESSION_NAME = 'script'
@@ -18,6 +19,8 @@ class Job:
         data_file = open("{}".format(self.path), "r")
         data = json.load(data_file)
 
+        rawCmd = data['cmd']
+        rawCmd.replace("\\\"", "\"")
         self.cmd = data['cmd']
         self.black = data['location_black']
         self.startFrame = data['startFrame']
