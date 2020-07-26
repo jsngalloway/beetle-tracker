@@ -21,7 +21,7 @@ From the root of this repo
 3. Upon completion a file will be generated in the same directory as the video specified.
 ### Track
 (From anaconda prompt with an idtrackerai env)
-1. python track/postprocessing.py path/to/the/video.mp4 (note that the generated txt file must be next to the video)
+1. python track/postprocessing.py path/to/the/file.json (note that the generated txt file must be next to the video)
 This portion requires no user input but can take several (~10) minutes depending on your configuration.
 
 ## Upcoming Features

@@ -6,9 +6,6 @@ import math
 import cv2
 import random
 import csv
-# import matplotlib.pyplot as plt
-# from matplotlib.patches import Circle
-
 
 class Job:
     SESSION_NAME = 'script'
@@ -18,16 +15,29 @@ class Job:
 
     def __init__(self, data):
         self.path = data
-        data_file = open("{}.txt".format(self.path), "r")
-        lines = data_file.readlines()
-        self.cmd = lines[0]
-        self.black = eval(lines[1])
-        self.startFrame = int(lines[2])
-        self.videoEndFrame = int(lines[3])
-        self.proximity_range = int(lines[4])
-        self.bracketROI = eval(lines[5])
-        print(self.cmd)
-        print(self.black)
+        data_file = open("{}".format(self.path), "r")
+        data = json.load(data_file)
+
+        self.cmd = data['cmd']
+        self.black = data['location_black']
+        self.startFrame = data['startFrame']
+        self.videoEndFrame = data['videoEndFrame']
+        self.proximity_range = data['proximity_range']
+        self.bracketROI = data['bracketROI']
+
+        data_file.close()
+
+        # lines = data_file.readlines()
+        # self.cmd = lines[0]
+        # self.black = eval(lines[1])
+        # self.startFrame = int(lines[2])
+        # self.videoEndFrame = int(lines[3])
+        # self.proximity_range = int(lines[4])
+        # self.bracketROI = eval(lines[5])
+        # print(self.cmd)
+        # print(self.black)
+    def getDirectory(self):
+        return os.path.dirname(self.path)
 
     def postprocess(self):
         print("Tracking complete. Beginning trajectory analysis...")
@@ -223,6 +233,12 @@ class Job:
 
 if __name__ == '__main__' :
     j = Job(sys.argv[1])
+
+    start_cwd = os.getcwd()
+    os.chdir(j.getDirectory())
+
     os.system(j.cmd)
-    
+
     j.postprocess()
+
+    os.chdir(start_cwd)

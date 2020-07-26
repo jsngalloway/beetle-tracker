@@ -5,6 +5,8 @@ import json
 import math
 import cv2
 import random
+from shutil import copyfile
+import json
 # import matplotlib.pyplot as plt
 # from matplotlib.patches import Circle
 
@@ -19,6 +21,7 @@ class Video:
         self.path = p
         #TODO this is arbitrary
         self.proximity_range = 45
+        
         print("Loaded in video {}".format(self.path))
         self.vidcap = cv2.VideoCapture(self.path)
         self.length = int(self.vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -48,7 +51,7 @@ class Video:
 
     def getTrackingCommand(self):
             #TODO does video end at the end?
-            cmd = "idtrackerai terminal_mode --_video \"{}\" --_session {} --_intensity [0,162] --_area [150,60000] --_range [{},{}] --_nblobs 2 --_roi \"{}\" --exec track_video".format(self.path, Video.SESSION_NAME, self.startFrame, self.length, self.arenaROIstr)
+            cmd = "idtrackerai terminal_mode --_video \"{}\" --_session {} --_intensity [0,162] --_area [150,60000] --_range [{},{}] --_nblobs 2 --_roi \"{}\" --exec track_video".format(os.path.basename(self.path), Video.SESSION_NAME, self.startFrame, self.length, self.arenaROIstr)
             return cmd
 
     def beetleSelect(self, img, windowName):
@@ -102,21 +105,21 @@ class Video:
 
             def draw_circle(self,event,x,y,flags,param):
                 if event == cv2.EVENT_LBUTTONUP:
-                    self.updated = True
-                    print("FOREGROUND")
+                    print("Marked areas as foreground, press enter to regenerate")
                     # cv2.circle(img,(x,y),8,(255,0,0),-1)
                     for i in range(y-10, y+10):
                         for j in range(x-10, x+10):
                             self.mask[i][j] = cv2.GC_FGD
                             # cv2.circle(disp_img,(j,i),1,(255,0,0),-1)
-                if event == cv2.EVENT_RBUTTONUP:
                     self.updated = True
-                    print("BACKGROUND")
+                if event == cv2.EVENT_RBUTTONUP:
+                    print("Marked areas as background, press enter to regenerate")
                     # cv2.circle(img,(x,y),8,(0,255,0),-1)
                     for i in range(y-10, y+10):
                         for j in range(x-10, x+10):
                             self.mask[i][j] = cv2.GC_BGD
                             # cv2.circle(disp_img,(j,i),1,(255,0,255),-1)
+                    self.updated = True
 
             def resetUpdateFlag(self):
                 self.updated = False
@@ -148,27 +151,30 @@ class Video:
 
             imgray = cv2.cvtColor(img_cut, cv2.COLOR_BGR2GRAY)
             _, thresh = cv2.threshold(imgray, 127, 255, 0)
-            # _, contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            ### Something funny happens with the next line depending on the version of opencv?
+            _, contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            # contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
             largest = 0
             for i in range(len(contours)):
                 if cv2.contourArea(contours[i]) > cv2.contourArea(contours[largest]):
                     largest = i
-            # print(contours[largest])
 
 
             disp_img = np.copy(img_cut)
             cv2.drawContours(disp_img, contours, largest, (0,255,0), 2)
             cv2.imshow(windowName, disp_img)
             
+
+            # wait for the user to hit enter to regen the model
             if cv2.waitKey(0):
                 if not mm.getUpdateFlag():
                     break
-            mm.resetUpdateFlag()
-            print("Regenerating model")
-            msk, bgdModel, fgdModel = cv2.grabCut(img,mm.getMask(),None,bgdModel,fgdModel,3,cv2.GC_INIT_WITH_MASK)
-            mm.setMask(msk)
-            print("Done.")
+                else:
+                    mm.resetUpdateFlag()
+                    print("Regenerating model")
+                    msk, bgdModel, fgdModel = cv2.grabCut(img,mm.getMask(),None,bgdModel,fgdModel,3,cv2.GC_INIT_WITH_MASK)
+                    mm.setMask(msk)
+                    print("Done.")
 
         cv2.setMouseCallback(windowName, lambda *args : None)
         # cv2.destroyAllWindows()
@@ -252,190 +258,34 @@ class Video:
                 print('First frame confirmed.')
                 return startFrame
 
-    # def postprocess(self):
-        print("Tracking complete. Beginning trajectory analysis...")
-        def dist(pointA,pointB): 
-            d = math.sqrt((pointB[0] - pointA[0])**2 + (pointB[1] - pointA[1])**2)  
-            return d
-        def getBlack(frame):
-            return frame[0]
-        def getWhite(frame):
-            return frame[1]
-        def inBox(point, ROI, buffer=0):
-            xMin = ROI[0] - buffer
-            yMin = ROI[1] - buffer
-            xMax = ROI[0] + ROI[2] + buffer
-            yMax = ROI[1] + ROI[3] + buffer
-            return ((xMin < point[0] < xMax) and (yMin < point[1] < yMax))
-        
-        def linear_interpolation(trajectories):
-            interp = 0
-            for id in range(0, 2):
-                for axis in range(0, 2):
-                    for frame in range(len(trajectories)):
-                        if(np.isnan(trajectories[frame][id][axis])):
-                            lastGood = frame-1
-                            newGood = lastGood
-                            endFrame = frame
-                            while(np.isnan(trajectories[frame][id][axis])):
-                                if(frame == len(trajectories)-1):
-                                    print("we reached the end of the traj with no new good value, using uniform interpolation. Accuracy will suffer")
-                                    endFrame = frame
-                                    break
-                                frame += 1
-                            newGood = frame
-                            endFrame = frame
-
-                            if (newGood == lastGood):
-                                for cr in range (lastGood, endFrame):
-                                    trajectories[cr][id][axis] = trajectories[lastGood][id][axis]
-                                    interp += 1
-                            else:
-                                step = (trajectories[newGood][id][axis] - trajectories[lastGood][id][axis])/(endFrame - lastGood)
-                                for cr in range (lastGood, endFrame):
-                                    trajectories[cr][id][axis] = trajectories[cr-1][id][axis] + step
-                                    interp += 1
-            print("Linear Interpolation finished. Filled ({}) values".format(interp))
-            print("\t{}/{} values linearly interpolated, {}%".format(interp, len(trajectories)*4, (interp/(len(trajectories)*4))*100))
-            return trajectories
-
-        def prox_interpolation(trajectories):
-            failed_frames = 0
-            def copyGoodValues(frame):
-                success = True
-                #We'll only check the x coord since idtracker ai won't record just one axis
-                if (np.isnan((frame)[0][0]) and (not np.isnan(frame[1][0]))):
-                    #id 0 is gone but 1 is there, copy 1's values to 0
-                    frame[0] = frame[1]
-                elif (np.isnan((frame)[1][0]) and (not np.isnan(frame[0][0]))):
-                    frame[1] = frame[0]
-                else:
-                    success = False
-                return (success, frame)
-
-            interp = 0
-            for frame in trajectories:
-                if np.isnan(np.sum(frame)):
-                    interp += 1
-                    success, frame = copyGoodValues(frame)
-                    if not success: failed_frames += 1
-            print("Proximity Interpolation finished. Filled ({}) values. ({}) Failed frames.".format(interp*2, failed_frames))
-            print("\t{}/{} values proximity interpolated, {}%".format(interp*2, len(trajectories)*4, (interp/(len(trajectories)*2))*100))
-            return trajectories
-
-
-        def black_white_id(trajectories):
-            black_to_id0 = dist(self.black, trajectories[0][0])
-            print("Black is {} away from id0.".format(black_to_id0))
-            black_to_id1 = dist(self.black, trajectories[0][1])
-            if (black_to_id0 > black_to_id1):
-                #1 is black, 0 is white: they need to be swapped
-                print("Swapping beetle ids...")
-                for i in range(len(trajectories)):
-                    tmp = np.copy(trajectories[i][0])
-                    trajectories[i][0] = trajectories[i][1]
-                    trajectories[i][1] = tmp
-            black_to_id0 = dist(self.black, trajectories[0][0])
-            print("Black is {} away from id0.".format(black_to_id0))
-            return trajectories
-        
-        def proximity_detection(trajectories):
-
-            proximity = np.empty(len(trajectories), float)
-            # velocity_to_avg_pos = np.empty((len(trajectories), 2), float)
-
-            count = 0
-            in_prox_last = False
-            PROXIMITY_FRAME_RANGE = 10
-            for i in range(PROXIMITY_FRAME_RANGE, len(proximity)-PROXIMITY_FRAME_RANGE):
-                distance = dist(getBlack(trajectories[i]), getWhite(trajectories[i]))
-                proximity[i] = distance
-                if ( distance < self.proximity_range):
-                    proximity[i] = distance
-                    count += 1
-                    if not in_prox_last:
-                        avg_pos = [(getBlack(trajectories[i])[0]+getWhite(trajectories[i])[0])/2, (getBlack(trajectories[i])[1]+getWhite(trajectories[i])[1])/2 ]
-                        #The beetles have just entered proximity, who initiated?
-                        incident = trajectories[i-PROXIMITY_FRAME_RANGE:i+PROXIMITY_FRAME_RANGE]
-                        black_avg_vel = 0
-                        white_avg_vel = 0
-                        for j in range(1, len(incident)):
-                            black_avg_vel += dist(getBlack(incident[j-1]), avg_pos) - dist(getBlack(incident[j]), avg_pos)
-                            white_avg_vel += dist(getWhite(incident[j-1]), avg_pos) - dist(getWhite(incident[j]), avg_pos)
-                        black_avg_vel = black_avg_vel/(len(incident)-1)
-                        white_avg_vel = white_avg_vel/(len(incident)-1)
-                        print("Contact initiated, beetles are: {} pixels apart".format(dist(getBlack(trajectories[i]), getWhite(trajectories[i]))))
-                        if(black_avg_vel > white_avg_vel):
-                            print("Frame: {} Black initiates contact".format(i+self.startFrame))
-                        else:
-                            print("White intiates contact")
-                        in_prox_last = True
-                else:
-                    in_prox_last = False
-            print("frames in prox: {}/{}".format(count, len(trajectories)))
-            return proximity
-        
-        def make_video(trajectories, proximities, video_name):
-            out = cv2.VideoWriter(video_name,cv2.VideoWriter_fourcc('M','J','P','G'), 10, (self.width,self.height))
-            self.vidcap.set(cv2.CAP_PROP_POS_FRAMES,self.startFrame)
-            # index = 0
-            for index in range(len(trajectories)):
-            # while(self.vidcap.isOpened()):
-                success, frame = self.vidcap.read()
-                if success:
-                    # Bracket Box
-                    frame = cv2.rectangle(frame, (self.bracketROI[0]-Video.BRACKET_BUFFER,self.bracketROI[1]-Video.BRACKET_BUFFER), (self.bracketROI[0]+self.bracketROI[2]+Video.BRACKET_BUFFER,self.bracketROI[1]+self.bracketROI[3]+Video.BRACKET_BUFFER), (100, 255, 0), 2)
-
-
-                    frame = cv2.circle(frame, (int(getBlack(trajectories[index])[0]), int(getBlack(trajectories[index])[1])), 2, (0, 0, 0) , 3)
-                    frame = cv2.circle(frame, (int(getWhite(trajectories[index])[0]), int(getWhite(trajectories[index])[1])), 2, (255, 255, 255) , 3)
-                    
-                    font                   = cv2.FONT_HERSHEY_SIMPLEX
-                    bottomLeftCornerOfText = (40,40)
-                    fontScale              = 0.66
-                    fontColor              = (255,0,0)#BGR
-                    lineType               = 2
-                    cv2.putText(frame, "Dist: {}".format(round(proximities[index])), bottomLeftCornerOfText, font, fontScale, fontColor, lineType)
-
-                    cv2.putText(frame, "On Bracket: {} {}".format("Black" if inBox(getBlack(trajectories[index]), self.bracketROI, Video.BRACKET_BUFFER) else "","White" if inBox(getWhite(trajectories[index]), self.bracketROI, Video.BRACKET_BUFFER) else ""), (40,70), font, fontScale, fontColor, lineType)
-                    if(proximities[index] < self.proximity_range):
-                        frame = cv2.circle(frame, (int(getBlack(trajectories[index])[0]), int(getBlack(trajectories[index])[1])), self.proximity_range, (0, 0, 255) , 2)
-                    # add annotations to frame
-                    out.write(frame)
-
-                    # Display the resulting frame    
-                    # cv2.imshow('frame',frame)
-                else:
-                    break
-                # index += 1
-
-            # When everything done, release the video capture and video write objects
-            self.vidcap.release()
-            out.release()
-
-            # Closes all the frames
-            cv2.destroyAllWindows() 
-
-        #Load in trajectories 'without gaps'
-        self.trajectories_wo_gaps_path = (os.path.dirname(os.path.realpath(self.path))) + '\\session_' + Video.SESSION_NAME + '\\trajectories_wo_gaps\\trajectories_wo_gaps.npy'
-        trajectories_dict = np.load(self.trajectories_wo_gaps_path, allow_pickle=True).item()
-        all_trajectories = trajectories_dict["trajectories"]
-
-        #Crop the trajectories array down to the analysed part
-        trajectories = all_trajectories[self.startFrame:self.length-1]
-        
-        trajectories = prox_interpolation(trajectories)
-        trajectories = linear_interpolation(trajectories)
-        trajectories = black_white_id(trajectories)
-
-        proximities = proximity_detection(trajectories)
-        make_video(trajectories, proximities, "post_proc_output.avi")
-
     def savePostProcData(self):
-        f= open(self.path + ".txt","w+")
-        toWrite = "{}\n{}\n{}\n{}\n{}\n{}".format(self.getTrackingCommand(), self.black, self.startFrame, self.videoEndFrame, self.proximity_range, self.bracketROI)
-        f.write(toWrite)
+        video_id = os.path.splitext(os.path.basename(self.path))[0]
+        target_dir = os.path.join(os.getcwd(), video_id)
+        try:
+            os.mkdir(target_dir)
+        except OSError:
+            print ("Creation of the directory %s failed, maybe it already exists..." % target_dir)
+        else:
+            print ("Successfully created %s folder" % target_dir)
+
+        f = open(os.path.join(target_dir, (video_id + ".json")),"w+")
+        class JsonOut:
+            def __init__(self, cmd, location_black, startFrame, videoEndFrame, proximity_range, bracketROI):
+                self.cmd = cmd
+                self.location_black = location_black
+                self.startFrame = startFrame
+                self.videoEndFrame = videoEndFrame
+                self.proximity_range = proximity_range
+                self.bracketROI = bracketROI
+
+        jOut = JsonOut(cmd = self.getTrackingCommand(), location_black=self.black, startFrame=self.startFrame, videoEndFrame=self.videoEndFrame, proximity_range=self.proximity_range, bracketROI=self.bracketROI)
+        jsonStr = json.dumps(jOut, indent=4, default=lambda o: o.__dict__)
+        f.write(jsonStr)
         f.close()
+
+        #copy the original video file into the new directory
+        copyfile(self.path, os.path.join(target_dir, os.path.basename(self.path)))
+        print("Successfully generated tracking files for {} at {}".format(video_id, target_dir))
 
 if __name__ == '__main__' :
     v = Video(sys.argv[1])
