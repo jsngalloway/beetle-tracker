@@ -139,7 +139,6 @@ class Job:
             proximity = np.empty(len(trajectories), float)
             # velocity_to_avg_pos = np.empty((len(trajectories), 2), float)
 
-            count = 0
             in_prox_last = False
             PROXIMITY_FRAME_RANGE = 10
             incident_list = []
@@ -158,10 +157,18 @@ class Job:
                     self.end_time_trial = None
                     self.duration_video = None
                     self.duration_trial = None
+                    self.deinitiator = None
+                    self.deinitiator_confidence = None
                 def endIncident(self, end_frame, white_avg_vel_out, black_avg_vel_out):
                     self.end_frame = end_frame
                     self.end_time_video = datetime.timedelta(seconds=self.end_frame/Job.VIDEO_OUTPUT_FPS)
                     self.end_time_trial = datetime.timedelta(seconds=self.end_frame*Job.SECONDS_PER_FRAME)
+                    if(black_avg_vel_out < white_avg_vel_out):
+                        self.deinitiator = "Black"
+                        self.deinitiator_confidence = white_avg_vel_out - black_avg_vel_out
+                    else:
+                        self.deinitiator = "White"
+                        self.deinitiator_confidence = black_avg_vel_out - white_avg_vel_out
                     self.duration_video = datetime.timedelta(seconds=(self.end_frame - self.start_frame)/Job.VIDEO_OUTPUT_FPS)
                     self.duration_trial = datetime.timedelta(seconds=(self.end_frame - self.start_frame)*Job.SECONDS_PER_FRAME)
                 def prettyPrint(self):
@@ -172,12 +179,24 @@ class Job:
                         if(self.end_frame):
                             print('\tVideo end time: {}'.format(str(self.end_time_video)))
                             print('\tTrial end time: {}'.format(str(self.end_time_trial)))
+                            print('\tDe-initiator: {}'.format(self.deinitiator))
+                            print('\t\tConfidence: {}'.format(round(self.deinitiator_confidence,1)))
                             print('\tDuration video: {}'.format(str(self.duration_video)))
                             print('\tDuration trial: {}'.format(str(self.duration_trial)))
                         else:
                             print("\tERROR: interaction has no end.")
 
-            def calculateAvgVelInRange(self, i, trajectories):
+            def calculateAvgVelInRange(i, trajectories, frame_range):
+                avg_pos = [(getBlack(trajectories[i])[0]+getWhite(trajectories[i])[0])/2, (getBlack(trajectories[i])[1]+getWhite(trajectories[i])[1])/2 ]
+                incident = trajectories[i-frame_range:i+frame_range]
+                black_avg_vel = 0
+                white_avg_vel = 0
+                for j in range(1, len(incident)):
+                    black_avg_vel += dist(getBlack(incident[j-1]), avg_pos) - dist(getBlack(incident[j]), avg_pos)
+                    white_avg_vel += dist(getWhite(incident[j-1]), avg_pos) - dist(getWhite(incident[j]), avg_pos)
+                black_avg_vel = black_avg_vel/(len(incident)-1)
+                white_avg_vel = white_avg_vel/(len(incident)-1)
+                return white_avg_vel, black_avg_vel
 
             for i in range(PROXIMITY_FRAME_RANGE, len(proximity)-PROXIMITY_FRAME_RANGE):
                 distance = dist(getBlack(trajectories[i]), getWhite(trajectories[i]))
@@ -185,24 +204,15 @@ class Job:
                 if (distance < self.proximity_range):
                     proximity[i] = distance
                     if not in_prox_last:
-                        avg_pos = [(getBlack(trajectories[i])[0]+getWhite(trajectories[i])[0])/2, (getBlack(trajectories[i])[1]+getWhite(trajectories[i])[1])/2 ]
-                        #The beetles have just entered proximity, who initiated?
-                        incident = trajectories[i-PROXIMITY_FRAME_RANGE:i+PROXIMITY_FRAME_RANGE]
-                        black_avg_vel = 0
-                        white_avg_vel = 0
-                        for j in range(1, len(incident)):
-                            black_avg_vel += dist(getBlack(incident[j-1]), avg_pos) - dist(getBlack(incident[j]), avg_pos)
-                            white_avg_vel += dist(getWhite(incident[j-1]), avg_pos) - dist(getWhite(incident[j]), avg_pos)
-                        black_avg_vel = black_avg_vel/(len(incident)-1)
-                        white_avg_vel = white_avg_vel/(len(incident)-1)
+                        white_avg_vel, black_avg_vel = calculateAvgVelInRange(i, trajectories, PROXIMITY_FRAME_RANGE)
                         this_incident = Incident(i, white_avg_vel, black_avg_vel)
                         incident_list.append(this_incident)
                         in_prox_last = True
                 else:
                     if in_prox_last:
                         #The interaction just ended
-
-                        incident_list[-1].endIncident(i, ???????????????)
+                        white_avg_vel, black_avg_vel = calculateAvgVelInRange(i, trajectories, PROXIMITY_FRAME_RANGE)
+                        incident_list[-1].endIncident(i, white_avg_vel, black_avg_vel)
                         print('Contact Incident {}:'.format(len(incident_list)))
                         incident_list[-1].prettyPrint()
                     in_prox_last = False
