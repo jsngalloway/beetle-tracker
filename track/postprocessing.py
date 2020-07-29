@@ -135,7 +135,6 @@ class Job:
             return trajectories
         
         def proximity_detection(trajectories):
-
             proximity = np.empty(len(trajectories), float)
             # velocity_to_avg_pos = np.empty((len(trajectories), 2), float)
 
@@ -159,6 +158,9 @@ class Job:
                     self.duration_trial = None
                     self.deinitiator = None
                     self.deinitiator_confidence = None
+                def format_time(self, t):
+                    s = t.strftime('%Y-%m-%d %H:%M:%S.%f')
+                    return s[:-3]
                 def endIncident(self, end_frame, white_avg_vel_out, black_avg_vel_out):
                     self.end_frame = end_frame
                     self.end_time_video = datetime.timedelta(seconds=self.end_frame/Job.VIDEO_OUTPUT_FPS)
@@ -185,6 +187,9 @@ class Job:
                             print('\tDuration trial: {}'.format(str(self.duration_trial)))
                         else:
                             print("\tERROR: interaction has no end.")
+                def printInq(self):
+                        initInitial = self.initiator[:1].lower()
+                        print('[{}] {}.prox'.format(str(self.start_time_video), initInitial))
 
             def calculateAvgVelInRange(i, trajectories, frame_range):
                 avg_pos = [(getBlack(trajectories[i])[0]+getWhite(trajectories[i])[0])/2, (getBlack(trajectories[i])[1]+getWhite(trajectories[i])[1])/2 ]
@@ -216,7 +221,7 @@ class Job:
                         print('Contact Incident {}:'.format(len(incident_list)))
                         incident_list[-1].prettyPrint()
                     in_prox_last = False
-            return proximity
+            return proximity, incident_list
         
         def make_video(trajectories, proximities, video_name):
             vidcap = cv2.VideoCapture(self.videoFile)
@@ -283,9 +288,13 @@ class Job:
         trajectories = verify_and_swap_black_white(interpolate(trajectories))
         # trajectories = verify_and_swap_black_white(trajectories)
         print('---------- PROXIMITY ANALYSIS ----------')
-        proximities = proximity_detection(trajectories)
+        proximities, incidents = proximity_detection(trajectories)
+        for incident in incidents:
+            incident.printInq()
         save_csv(trajectories, proximities, "post_proc_output.csv")
         print('Data output saved to {}'.format("post_proc_output.csv"))
+        print("Sample inqscribe data for this video:")
+
         # make_video(trajectories, proximities, "post_proc_output.avi")
         # print('Annotated video saved to {}'.format("post_proc_output.avi"))
 
