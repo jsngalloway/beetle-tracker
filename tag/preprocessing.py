@@ -23,6 +23,7 @@ class Video:
         self.proximity_range = 45
         
         print("Loaded in video {}".format(self.path))
+        self.videoFile = os.path.basename(self.path)
         self.vidcap = cv2.VideoCapture(self.path)
         self.length = int(self.vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
         self.time = Video.START_TIME
@@ -51,7 +52,7 @@ class Video:
 
     def getTrackingCommand(self):
             #TODO does video end at the end?
-            cmd = "idtrackerai terminal_mode --_video \"{}\" --_session {} --_intensity [0,162] --_area [150,60000] --_range [{},{}] --_nblobs 2 --_roi \"{}\" --exec track_video".format(os.path.basename(self.path), Video.SESSION_NAME, self.startFrame, self.length, self.arenaROIstr)
+            cmd = "idtrackerai terminal_mode --_video \"{}\" --_session {} --_intensity [0,162] --_area [150,60000] --_range [{},{}] --_nblobs 2 --_roi \"{}\" --exec track_video".format(self.videoFile, Video.SESSION_NAME, self.startFrame, self.length, self.arenaROIstr)
             return cmd
 
     def beetleSelect(self, img, windowName):
@@ -270,15 +271,16 @@ class Video:
 
         f = open(os.path.join(target_dir, (video_id + ".json")),"w+")
         class JsonOut:
-            def __init__(self, cmd, location_black, startFrame, videoEndFrame, proximity_range, bracketROI):
+            def __init__(self, cmd, location_black, startFrame, videoEndFrame, proximity_range, bracketROI, videoFile):
                 self.cmd = cmd
                 self.location_black = location_black
                 self.startFrame = startFrame
                 self.videoEndFrame = videoEndFrame
                 self.proximity_range = proximity_range
                 self.bracketROI = bracketROI
+                self.video = videoFile
 
-        jOut = JsonOut(cmd = self.getTrackingCommand(), location_black=self.black, startFrame=self.startFrame, videoEndFrame=self.videoEndFrame, proximity_range=self.proximity_range, bracketROI=self.bracketROI)
+        jOut = JsonOut(cmd = self.getTrackingCommand(), location_black=self.black, startFrame=self.startFrame, videoEndFrame=self.videoEndFrame, proximity_range=self.proximity_range, bracketROI=self.bracketROI, videoFile=self.videoFile)
         jsonStr = json.dumps(jOut, indent=4, default=lambda o: o.__dict__)
         f.write(jsonStr)
         f.close()

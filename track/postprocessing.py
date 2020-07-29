@@ -27,6 +27,7 @@ class Job:
         self.videoEndFrame = data['videoEndFrame']
         self.proximity_range = data['proximity_range']
         self.bracketROI = data['bracketROI']
+        self.videoFile = data['video']
 
         data_file.close()
 
@@ -166,7 +167,7 @@ class Job:
             return proximity
         
         def make_video(trajectories, proximities, video_name):
-            vidcap = cv2.VideoCapture(self.path)
+            vidcap = cv2.VideoCapture(self.videoFile)
             success,image = vidcap.read()
             height, width = image.shape[:2]
             out = cv2.VideoWriter(video_name,cv2.VideoWriter_fourcc('M','J','P','G'), 10, (width,height))
@@ -219,20 +220,24 @@ class Job:
                     data_writer.writerow([time, getBlack(trajectories[index])[0], getBlack(trajectories[index])[1], getWhite(trajectories[index])[0], getWhite(trajectories[index])[1], proximities[index], inBox(getBlack(trajectories[index]), self.bracketROI, Job.BRACKET_BUFFER), inBox(getWhite(trajectories[index]), self.bracketROI, Job.BRACKET_BUFFER)])
 
         #Load in trajectories 'without gaps'
-        self.trajectories_wo_gaps_path = (os.path.dirname(os.path.realpath(self.path))) + '\\session_' + Job.SESSION_NAME + '\\trajectories_wo_gaps\\trajectories_wo_gaps.npy'
+        self.trajectories_wo_gaps_path = 'session_' + Job.SESSION_NAME + '\\trajectories_wo_gaps\\trajectories_wo_gaps.npy'
+        # self.trajectories_wo_gaps_path = (os.path.dirname(os.path.realpath(self.path))) + '\\session_' + Job.SESSION_NAME + '\\trajectories_wo_gaps\\trajectories_wo_gaps.npy'
         trajectories_dict = np.load(self.trajectories_wo_gaps_path, allow_pickle=True).item()
         all_trajectories = trajectories_dict["trajectories"]
 
         #Crop the trajectories array down to the analysed part
         trajectories = all_trajectories[self.startFrame:self.videoEndFrame-1]
-        
+        print('---------- INTERPOLATION ----------')
         trajectories = prox_interpolation(trajectories)
         trajectories = linear_interpolation(trajectories)
         trajectories = black_white_id(trajectories)
-
+        print('---------- PROXIMITY ANALYSIS ----------')
         proximities = proximity_detection(trajectories)
         save_csv(trajectories, proximities, "post_proc_output.csv")
+        print('Data output saved to {}'.format("post_proc_output.csv"))
         make_video(trajectories, proximities, "post_proc_output.avi")
+        print('Annotated video saved to {}'.format("post_proc_output.avi"))
+
 
 if __name__ == '__main__' :
     j = Job(sys.argv[1])
@@ -240,7 +245,7 @@ if __name__ == '__main__' :
     start_cwd = os.getcwd()
     os.chdir(j.getDirectory())
 
-    os.system(j.cmd)
+    # os.system(j.cmd)
 
     j.postprocess()
 
