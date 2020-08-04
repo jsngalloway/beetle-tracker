@@ -7,9 +7,11 @@ import cv2
 import random
 from shutil import copyfile
 import json
+import tkinter as tk
+from tkinter import filedialog
+from PIL import ImageTk, Image
 # import matplotlib.pyplot as plt
 # from matplotlib.patches import Circle
-
 
 class Video:
     SESSION_NAME = 'script'
@@ -17,38 +19,50 @@ class Video:
     BRACKET_BUFFER = 10
     WINDOW_NAME = 'window'
 
-    def __init__(self, p): 
+    def __init__(self):
+        print("made empty video")
+        
+    def initialize(self, p):
         self.path = p
         #TODO this is arbitrary
         self.proximity_range = 45
-        
-        print("Loaded in video {}".format(self.path))
-        self.videoFile = os.path.basename(self.path)
+        print("THIS IS NOW IN THE NEW INITLIAZE FNCTION {}".format(self.path))
         self.vidcap = cv2.VideoCapture(self.path)
+        self.videoFile = os.path.basename(self.path)
+
         self.length = int(self.vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
         self.time = Video.START_TIME
         self.vidcap.set(cv2.CAP_PROP_POS_MSEC,self.time)
         success,self.image = self.vidcap.read()
         self.height, self.width = self.image.shape[:2]
 
-        if success:
-            cv2.namedWindow(Video.WINDOW_NAME)
+        self.bracketROI = None
+        self.basicArenaROI = None
+        self.arenaROIstr = None
+        self.black = None
+        self.startFrame = None
+        self.videoEndFrame = None
+        # ------------------- End Init Section ---------------------
 
-            self.bracketROI = self.getBracketROI(self.image, Video.WINDOW_NAME)
-            
-            (self.basicArenaROI, self.arenaROIstr) = self.getArenaROI2(self.image, Video.WINDOW_NAME)
-            
-            self.black = self.beetleSelect(self.image, Video.WINDOW_NAME)
-
-            self.startFrame = self.getFirstFrame(Video.WINDOW_NAME)
-            self.videoEndFrame = self.length + self.startFrame
-
-            
-            cv2.destroyAllWindows()
-            print("Processing Complete.\n\tStart Frame: {}/{}\n\tArena: {}\n\tBracket (x,y,w,h): {}".format(self.startFrame, self.length, self.arenaROIstr, self.bracketROI))
-        else:
-            print('Unable to load video, verify video path or video may be very short.')
+        if not success:
+            print('An unknown error has occurred processing the video, contact Jesse.')
             print(self.path)
+
+
+
+    def getBracketROIWrapper(self):
+        self.bracketROI = self.getBracketROI(self.image, Video.WINDOW_NAME)
+    def getArenaROIWrapper(self):
+        (self.basicArenaROI, self.arenaROIstr) = self.getArenaROI2(self.image, Video.WINDOW_NAME)
+    def getBeetleSelectWrapper(self):
+        self.black = self.beetleSelect(self.image, Video.WINDOW_NAME)
+    def getFirstFrameWrapper(self):
+        self.startFrame = self.getFirstFrame(Video.WINDOW_NAME)
+        self.videoEndFrame = self.length + self.startFrame
+    def finishAndSave(self):
+        cv2.destroyAllWindows()
+        print("Processing Complete.\n\tStart Frame: {}/{}\n\tArena: {}\n\tBracket (x,y,w,h): {}".format(self.startFrame, self.length, self.arenaROIstr, self.bracketROI))
+        self.savePostProcData()
 
     def getTrackingCommand(self):
             #TODO does video end at the end?
@@ -205,7 +219,8 @@ class Video:
 
     def getBracketROI(self, img, windowName):
         print('Select the bracket....')
-        bracket = cv2.selectROI(windowName, img)
+        bracket = cv2.selectROI("Select the bracket", img)
+        cv2.destroyWindow("Select the bracket")
         print("Bracket ROI confirmed.\n")
         return bracket
 
@@ -290,6 +305,6 @@ class Video:
         print("Successfully generated tracking files for {} at {}".format(video_id, target_dir))
 
 if __name__ == '__main__' :
-    v = Video(sys.argv[1])
-    v.savePostProcData()
+    # v = Video()
+    # v.savePostProcData()
     print("Run the processing script on GPU cluster:\npython postprocessing.py {}".format(v.path))
