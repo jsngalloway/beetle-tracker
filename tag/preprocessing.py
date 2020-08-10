@@ -52,13 +52,20 @@ class Video:
 
     def getBracketROIWrapper(self):
         self.bracketROI = self.getBracketROI(self.image, Video.WINDOW_NAME)
+        return len(self.bracketROI)
     def getArenaROIWrapper(self):
-        (self.basicArenaROI, self.arenaROIstr) = self.getArenaROI2(self.image, Video.WINDOW_NAME)
+        (self.basicArenaROI, self.arenaROIstr) = self.getArenaROI2(self.image, "Select Arena...")
+        return len(self.basicArenaROI)
     def getBeetleSelectWrapper(self):
+        if self.startFrame
         self.black = self.beetleSelect(self.image, Video.WINDOW_NAME)
+        return self.black
     def getFirstFrameWrapper(self):
         self.startFrame = self.getFirstFrame(Video.WINDOW_NAME)
-        self.videoEndFrame = self.length + self.startFrame
+        return self.startFrame
+    def getLastFrameWrapper(self):
+        self.videoEndFrame = self.getLastFrame(Video.WINDOW_NAME)
+        return self.videoEndFrame
     def finishAndSave(self):
         cv2.destroyAllWindows()
         print("Processing Complete.\n\tStart Frame: {}/{}\n\tArena: {}\n\tBracket (x,y,w,h): {}".format(self.startFrame, self.length, self.arenaROIstr, self.bracketROI))
@@ -193,6 +200,7 @@ class Video:
 
         cv2.setMouseCallback(windowName, lambda *args : None)
         # cv2.destroyAllWindows()
+        cv2.destroyWindow(windowName)
         return(rect, contourToString(contours[largest]))
 
     def getArenaROI(self):
@@ -225,7 +233,14 @@ class Video:
         return bracket
 
     def getFirstFrame(self, windowName):
+        return self.autoGetFrame("Select First Frame", 10, 1.5)
+    def getLastFrame(self, windowName):
+        return self.autoGetFrame("Select Last Frame", self.length-400, 0.82)
 
+    def autoGetFrame(self, windowName, startPoint, sensitivity):
+        strt = 0
+        velocity = 5
+        self.vidcap.set(cv2.CAP_PROP_POS_FRAMES,startPoint) #move to frame 0
         def getBrightness(self, r, img):
             def getRandX(roi):
                 return random.randint(r[0],r[0]+r[2])
@@ -239,39 +254,47 @@ class Video:
                 sum = sum + img[x,y,0]
             return sum/500
 
-        self.vidcap.set(cv2.CAP_PROP_POS_FRAMES,0) #move to frame 0
         success, img = self.vidcap.read()
-        strt = 0
+        cv2.imshow(windowName, img)
+
         if success:
             strt = getBrightness(self, self.basicArenaROI, img)
         else:
             print("Error autodetecting brightness")
 
         def onChange(trackbarValue):
-            print("trackbar change")
-            self.vidcap.set(cv2.CAP_PROP_POS_FRAMES,trackbarValue)
+            self.vidcap.set(cv2.CAP_PROP_POS_FRAMES,startPoint+trackbarValue)
             success,img = self.vidcap.read()
             cv2.imshow(windowName, img)
         
-        # cv2.namedWindow(windowName)
-        cv2.createTrackbar( 'start', windowName, 0, 600, onChange )
-        print('Auto-detecting first frame...')
-        for i in range(10, self.length, 5):
+        # len = 1000
+        # startPoint = 10
+        # startpoint = 800
+        trackbarStart = 0
+        TRACKBAR_LENGTH = 400
+        # if ((self.length - startPoint) > (self.length/2)):
+        #     trackbarStart = 
+        cv2.createTrackbar( 'start', windowName, trackbarStart, TRACKBAR_LENGTH, onChange )
+        print('Auto-detecting frame...')
+        for i in range(startPoint, startPoint+TRACKBAR_LENGTH, velocity):
+            if i >= self.length-2:
+                print("Failed auto detection, proceed manually.")
+                break
             self.vidcap.set(cv2.CAP_PROP_POS_FRAMES,i)
             success,image = self.vidcap.read()
 
-            cv2.setTrackbarPos('start',windowName,i)
+            cv2.setTrackbarPos('start',windowName,trackbarStart+(i-startPoint))
             # cv2.imshow(windowName, image)
 
             cfrm = getBrightness(self, self.basicArenaROI, image)
-            if (cfrm > strt*1.5):
+            # print("Frame {}, brightness: {}".format(i, cfrm))
+            if ((sensitivity > 1) and (cfrm > strt*sensitivity)) or ((sensitivity <= 1) and (cfrm <= strt*sensitivity)):
                 # print("Frame {}, brightness: {}".format(i, cfrm))
-                # self.vidcap.set(cv2.CAP_PROP_POS_FRAMES,i)
-                # cv2.setTrackbarPos('start',windowName,i)
-                print("Adjust or use ENTER to confirm Selection...")
+                print("Adjust or press any key to confirm Selection...")
                 cv2.waitKey()
-                startFrame = cv2.getTrackbarPos('start',windowName)
-                print('First frame confirmed.')
+                startFrame = startPoint + cv2.getTrackbarPos('start',windowName)
+                print('Frame confirmed. {}'.format(startFrame))
+                cv2.destroyWindow(windowName)
                 return startFrame
 
     def savePostProcData(self):
