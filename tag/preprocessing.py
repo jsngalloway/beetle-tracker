@@ -57,7 +57,7 @@ class Video:
         (self.basicArenaROI, self.arenaROIstr) = self.getArenaROI2(self.image, "Select Arena...")
         return len(self.basicArenaROI)
     def getBeetleSelectWrapper(self):
-        if self.startFrame
+        # if self.startFrame
         self.black = self.beetleSelect(self.image, Video.WINDOW_NAME)
         return self.black
     def getFirstFrameWrapper(self):
@@ -104,6 +104,7 @@ class Video:
         cv2.waitKey(0)
         cv2.setMouseCallback(windowName, lambda *args : None)
         retVal = coordStore.getBlack()
+        cv2.destroyWindow(windowName)
         return retVal
 
     def getArenaROI2(self, img, windowName):
@@ -233,11 +234,11 @@ class Video:
         return bracket
 
     def getFirstFrame(self, windowName):
-        return self.autoGetFrame("Select First Frame", 10, 1.5)
+        return self.autoGetFrame("Select First Frame", 10, 1.5, "Start (fr 10)")
     def getLastFrame(self, windowName):
-        return self.autoGetFrame("Select Last Frame", self.length-400, 0.82)
+        return self.autoGetFrame("Select Last Frame", self.length-400, 0.82, "Near end (fr {})".format(self.length-400))
 
-    def autoGetFrame(self, windowName, startPoint, sensitivity):
+    def autoGetFrame(self, windowName, startPoint, sensitivity, trackbarName):
         strt = 0
         velocity = 5
         self.vidcap.set(cv2.CAP_PROP_POS_FRAMES,startPoint) #move to frame 0
@@ -274,7 +275,7 @@ class Video:
         TRACKBAR_LENGTH = 400
         # if ((self.length - startPoint) > (self.length/2)):
         #     trackbarStart = 
-        cv2.createTrackbar( 'start', windowName, trackbarStart, TRACKBAR_LENGTH, onChange )
+        cv2.createTrackbar( trackbarName, windowName, trackbarStart, TRACKBAR_LENGTH, onChange )
         print('Auto-detecting frame...')
         for i in range(startPoint, startPoint+TRACKBAR_LENGTH, velocity):
             if i >= self.length-2:
@@ -283,7 +284,7 @@ class Video:
             self.vidcap.set(cv2.CAP_PROP_POS_FRAMES,i)
             success,image = self.vidcap.read()
 
-            cv2.setTrackbarPos('start',windowName,trackbarStart+(i-startPoint))
+            cv2.setTrackbarPos(trackbarName,windowName,trackbarStart+(i-startPoint))
             # cv2.imshow(windowName, image)
 
             cfrm = getBrightness(self, self.basicArenaROI, image)
@@ -292,14 +293,16 @@ class Video:
                 # print("Frame {}, brightness: {}".format(i, cfrm))
                 print("Adjust or press any key to confirm Selection...")
                 cv2.waitKey()
-                startFrame = startPoint + cv2.getTrackbarPos('start',windowName)
+                startFrame = startPoint + cv2.getTrackbarPos(trackbarName,windowName)
                 print('Frame confirmed. {}'.format(startFrame))
                 cv2.destroyWindow(windowName)
                 return startFrame
 
-    def savePostProcData(self):
+    def savePostProcData(self, target_area):
+
         video_id = os.path.splitext(os.path.basename(self.path))[0]
-        target_dir = os.path.join(os.getcwd(), video_id)
+        target_dir = os.path.join(target_area, video_id)
+
         try:
             os.mkdir(target_dir)
         except OSError:
@@ -326,6 +329,7 @@ class Video:
         #copy the original video file into the new directory
         copyfile(self.path, os.path.join(target_dir, os.path.basename(self.path)))
         print("Successfully generated tracking files for {} at {}".format(video_id, target_dir))
+        return(target_dir)
 
 if __name__ == '__main__' :
     # v = Video()

@@ -6,11 +6,22 @@ from preprocessing import Video
 import os
 
 class Runner:
+
+    class Statuses:
+        def __init__(self):
+            self.video = None
+            self.bracket = None
+            self.arena = None
+            self.beetle = None
+            self.start = None
+            self.end = None
+
     def __init__(self):
         root = tk.Tk()
         self.currentVideo = Video()
+        self.statuses = self.Statuses()
+        self.savePath = os.getcwd()
         title = tk.Label(text="Beetle Tracker GUI", padx=80, pady=20)
-        # btnGroup = LabelFrame(root, padx=5, pady=5)
 
         self.newVideoBtn = tk.Button(text="Select Video", command=lambda: self.currentVideo.initialize(self.newVideo()))
         videoTxt = tk.Label(text="Video: ", pady=8)
@@ -38,7 +49,10 @@ class Runner:
         
         instructions = tk.Label(text="Select a video file to start")
 
-        startButton = tk.Button(text="Save Files", state="disabled", padx=10, pady=10)
+        self.startButton = tk.Button(text="Save Files", state="disabled", padx=10, pady=10, command=lambda: self.startFn(self.savePath))
+
+        self.savePathBtn = tk.Button(text="Output", command=self.changeSavePathFn)
+        self.savePathTxt = tk.Label(text="{}".format(self.savePath), pady=8)
 
         title.grid(columnspan=3)
 
@@ -66,46 +80,57 @@ class Runner:
         endTxt.grid(sticky = tk.W, column=1, row=6)
         self.endStatus.grid(sticky = tk.W, column=2, row=6)
         
-        startButton.grid(columnspan=3)
-        instructions.grid(columnspan=3)
-        root.mainloop()
+        self.startButton.grid(columnspan=3, row = 7)
+        instructions.grid(columnspan=3, row = 8)
 
-    def activateAllButtons(self):
-        self.selectBracketBtn["state"] = "normal"
-        self.selectArenaBtn["state"] = "normal"
-        self.selectBeetleBtn["state"] = "normal"
+        self.savePathBtn.grid(column=0, row = 9)
+        self.savePathTxt.grid(column=1, columnspan=2, row=9)
+        root.mainloop()
 
     def selectBracketBtnFn(self):
         res = self.currentVideo.getBracketROIWrapper()
-        if self.currentVideo.bracketROI:
-            self.bracketStatus["fg"] = "green"
-            self.bracketStatus["text"] = "Done"
+        if(res):
+            self.statuses.bracket = "Done"
+        else: 
+            self.statuses.bracket = None
+        self.updateStatuses()
 
     def selectArenaBtnFn(self):
         res = self.currentVideo.getArenaROIWrapper()
-        if res:
-            self.arenaStatus["fg"] = "green"
-            self.arenaStatus["text"] = "Done"
-            self.selectStartBtn["state"] = "normal"
-            self.selectEndBtn["state"] = "normal"
-    
+        if(res):
+            self.statuses.arena = "Done"
+        else: 
+            self.statuses.arena = None
+        self.updateStatuses()
+
     def getFirstFrameWrapperFn(self):
         res = self.currentVideo.getFirstFrameWrapper()
         if res:
-            self.startStatus["fg"] = "green"
-            self.startStatus["text"] = str(res)
+            self.statuses.start = str(res)
+        else:
+            self.statuses.start = None
+        self.updateStatuses()
 
     def getLastFrameWrapperFn(self):
         res = self.currentVideo.getLastFrameWrapper()
         if res:
-            self.endStatus["fg"] = "green"
-            self.endStatus["text"] = str(res)
+            self.statuses.end = str(res)
+        else:
+            self.statuses.end = None
+        self.updateStatuses()
+
     def getBeetleSelectWrapperFn(self):
         res = self.currentVideo.getBeetleSelectWrapper()
         if res:
-            self.beetleStatus["fg"] = "green"
-            self.beetleStatus["text"] = str(res)
+            self.statuses.beetle = str(res)
+        else:
+            self.statuses.beetle = None
+        self.updateStatuses()
 
+    def changeSavePathFn(self):
+        dirname = tk.filedialog.askdirectory(initialdir="../",title='Please select a directory')
+        self.savePath = dirname
+        self.updateStatuses()
 
     def newVideo(self):
         def pickFile():
@@ -122,12 +147,81 @@ class Runner:
             return path
         f = pickFile()
         print(f)
-        self.activateAllButtons()
-        self.videoStatus["text"] = os.path.basename(f)
-        self.videoStatus["fg"] = "Green"
-
+        self.statuses.video = os.path.basename(f)
+        self.updateStatuses()
         return f
-        # self.currentVideo = Video(f)
+
+    def updateStatuses(self):
+        if(self.statuses.video):
+            self.videoStatus["text"] = self.statuses.video
+            self.videoStatus["fg"] = "Green"
+
+            self.selectBracketBtn["state"] = "normal"
+            self.selectArenaBtn["state"] = "normal"
+            self.selectStartBtn["state"] = "normal"
+            self.selectEndBtn["state"] = "normal"
+        else:
+            self.videoStatus["fg"] = "red"
+            self.videoStatus["text"] = "None"
+            self.selectBracketBtn["state"] = "disabled"
+            self.selectArenaBtn["state"] = "disabled"
+            self.selectStartBtn["state"] = "disabled"
+            self.selectEndBtn["state"] = "disabled"
+
+        if(self.statuses.bracket):
+            self.bracketStatus["fg"] = "green"
+            self.bracketStatus["text"] = "Done"
+        else:
+            self.bracketStatus["fg"] = "red"
+            self.bracketStatus["text"] = "None"
+
+        if(self.statuses.arena):
+            self.arenaStatus["fg"] = "green"
+            self.arenaStatus["text"] = "Done"
+        else:
+            self.arenaStatus["fg"] = "red"
+            self.arenaStatus["text"] = "None"
+
+        if(self.statuses.start):
+            self.startStatus["fg"] = "green"
+            self.startStatus["text"] = self.statuses.start
+            self.selectBeetleBtn["state"] = "normal"
+        else:
+            self.startStatus["fg"] = "red"
+            self.startStatus["text"] = "None"
+            self.selectBeetleBtn["state"] = "disabled"
+
+        if(self.statuses.end):
+            self.endStatus["fg"] = "green"
+            self.endStatus["text"] = self.statuses.end
+        else:
+            self.endStatus["fg"] = "red"
+            self.endStatus["text"] = "None"
+
+        if(self.statuses.beetle):
+            self.beetleStatus["fg"] = "green"
+            self.beetleStatus["text"] = self.statuses.beetle
+        else:
+            self.beetleStatus["fg"] = "red"
+            self.beetleStatus["text"] = "None" 
+
+        if(self.statuses.video and
+        self.statuses.bracket and
+        self.statuses.arena and
+        self.statuses.start and
+        self.statuses.end and
+        self.statuses.beetle ):
+            self.startButton["state"] = "normal"
+        else:
+            self.startButton["state"] = "disabled"
+
+        self.savePathTxt["text"] = self.savePath
+
+    def startFn(self, savePath):
+        path = self.currentVideo.savePostProcData(savePath)
+        print("Directory generated at {}".format(path))
+        os.startfile(path)
+
 
     
     # def getBeetleBracketBtnFn(self):

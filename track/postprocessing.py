@@ -17,6 +17,7 @@ class Job:
     SECONDS_PER_FRAME = 4
 
     def __init__(self, data):
+        print(data)
         self.path = data
         data_file = open("{}".format(self.path), "r")
         data = json.load(data_file)
@@ -30,7 +31,7 @@ class Job:
         self.proximity_range = data['proximity_range']
         self.bracketROI = data['bracketROI']
         self.videoFile = data['video']
-
+        # print("Black at {}".format(self.black))
         data_file.close()
 
         # lines = data_file.readlines()
@@ -305,7 +306,7 @@ if __name__ == '__main__' :
     start_cwd = os.getcwd()
     os.chdir(j.getDirectory())
 
-    # os.system(j.cmd)
+    os.system(j.cmd)
 
     j.postprocess()
 
