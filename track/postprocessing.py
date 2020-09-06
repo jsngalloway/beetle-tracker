@@ -15,7 +15,7 @@ class Job:
     SESSION_NAME = 'script'
     BRACKET_BUFFER = 10
     WINDOW_NAME = 'window'
-    VIDEO_OUTPUT_FPS = 10
+    VIDEO_OUTPUT_FPS = 30
     SECONDS_PER_FRAME = 4
 
     def __init__(self, data):
@@ -214,9 +214,14 @@ class Job:
                     
                     cv2.putText(frame, "{}".format(str(self.frame2videoTime(index)).split('.', 2)[0]), (40,100), font, fontScale, fontColor, lineType)
                     if len(inqscribe_events):
-                        cv2.putText(frame, "{}".format(inqscribe_events[0]), (40,130), font, fontScale, fontColor, lineType)
-                        if (self.frame2videoTime(index+16) >= (inqscribe_events[0]).getTime()):
+                        cv2.putText(frame, "Past:{}".format(inqscribe_events[0]), (40,130), font, fontScale, fontColor, lineType)
+                    if len(inqscribe_events) > 1:
+                        cv2.putText(frame, "Next:{}".format(inqscribe_events[1]), (40,160), font, fontScale, fontColor, lineType)
+                        if (self.frame2videoTime(index+16) >= (inqscribe_events[1]).getTime()):
                             inqscribe_events.pop(0)
+                    if len(inqscribe_events) > 2:
+                        cv2.putText(frame, "     {}".format(inqscribe_events[2]), (40,190), font, fontScale, fontColor, lineType)
+
 
                     out.write(frame)
 
@@ -266,16 +271,17 @@ class Job:
             frame_count = 0
             current_event = None
             for frame in trajectories:
-                on_bracket = inBox(frame[0], self.bracketROI, Job.BRACKET_BUFFER)
+                on_bracket = inBox(frame[beetleId], self.bracketROI, Job.BRACKET_BUFFER)
                 # print(history)
                 if history.pop(): #remove the oldest element in the list, effectivly a queue
                     if True not in history:
                         if current_event:
                             current_event.endIncident(self.frame2videoTime(frame_count))
                             events.append(current_event)
+                            current_event = None
                         else:
                             print('we got an issue here bud')
-                if (on_bracket and (True not in history)):
+                if (on_bracket and (current_event == None)):
                     current_event = BracketIncident(self.frame2videoTime(frame_count), beetleChar)
                 history.insert(0, on_bracket) #insert whether the beetle was on the bracket at the beginning of the list
                 frame_count += 1
@@ -283,7 +289,15 @@ class Job:
             return events
 
 
-
+        def save_inqscribe(filename, events):
+            events.insert(0, (InqscribeEvent(self.frame2videoTime(0), 'Note:' + filename, None)))
+            f = open(filename + ".inqscr", mode="w")
+            f.write("app=InqScribe\n")
+            event_str = ""
+            for event in events:
+               event_str += (str(event) + "\\r")
+            f.write("text={}".format(event_str))
+            f.close()
 
 
         #Load in trajectories 'without gaps'
@@ -318,9 +332,9 @@ class Job:
         for event in inqscribe_events:
             print(event)
 
-        make_video(trajectories, proximities, inqscribe_events, "post_proc_output.avi")
-        print('Annotated video saved to {}'.format("post_proc_output.avi"))
-
+        # make_video(trajectories, proximities, inqscribe_events, "post_proc_output.avi")
+        # print('Annotated video saved to {}'.format("post_proc_output.avi"))
+        save_inqscribe(self.path, inqscribe_events)
 
 if __name__ == '__main__' :
     j = Job(sys.argv[1])

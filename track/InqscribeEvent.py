@@ -13,7 +13,11 @@ class InqscribeEvent:
             formatted_time += ((str(self.time).split('.', 2)[1])[:2])
         else:
             formatted_time += "00"
-        return ('[{}] {}.{}'.format(formatted_time, self.identifier, self.activity))
+        if self.activity:
+            return ('[{}] {}.{}'.format(formatted_time, self.identifier, self.activity))
+        else:
+            return ('[{}] {}'.format(formatted_time, self.identifier))
+
 
     def __lt__(self, other):
          return self.time < other.time

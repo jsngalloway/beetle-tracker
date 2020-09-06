@@ -10,7 +10,7 @@ class Incident:
         self.inqscribe_events = []
 
     def prettyPrint(self):
-            print('\tType: {}'.format(type(self).__name__))
+            print('Type: {}'.format(type(self).__name__))
             print('\tStart time: {}'.format(str(self.start_time)))
             if(self.end_time):
                 print('\End time: {}'.format(str(self.end_time)))
@@ -27,7 +27,7 @@ class TrialIndicent(Incident):
         self.inqscribe_events.append(InqscribeEvent(start_time, 't', 'start'))
         self.inqscribe_events.append(InqscribeEvent(end_time, 't', 'ends'))
     def prettyPrint(self):
-            print('\tType: {}'.format(type(self).__name__))
+            print('Type: {}'.format(type(self).__name__))
             print('\tStart time: {}'.format(str(self.start_time)))
             if(self.end_time):
                 print('\tEnd time: {}'.format(str(self.end_time)))
@@ -46,10 +46,11 @@ class BracketIncident(Incident):
         self.inqscribe_events.append(InqscribeEvent(end_time, self.beetleChar, 'fu.' + 'e'))
 
     def prettyPrint(self):
-            print('\tType: {}'.format(type(self).__name__))
+            print('Type: {}'.format(type(self).__name__))
+            print('\tBeetle: {}'.format(self.beetleChar))
             print('\tStart time: {}'.format(str(self.start_time)))
             if(self.end_time):
-                print('\End time: {}'.format(str(self.end_time)))
+                print('\tEnd time: {}'.format(str(self.end_time)))
             else:
                 print("\tERROR: interaction has no end.")
 
@@ -59,7 +60,7 @@ class StartIncident(Incident):
         self.inqscribe_events = []
         self.inqscribe_events.append(InqscribeEvent(start_time, beetleChar, 'first'))
     def prettyPrint(self):
-        print('\tType: {}'.format(type(self).__name__))
+        print('Type: {}'.format(type(self).__name__))
         print('\tStart time: {}'.format(str(self.start_time)))
 
 class ProximityIncident(Incident):
@@ -88,8 +89,8 @@ class ProximityIncident(Incident):
         self.inqscribe_events.append(InqscribeEvent(end_time, self.deinitiator[:1].lower(), 'ends'))
 
     def prettyPrint(self):
+            print('Type: {}'.format(type(self).__name__))
             print('\tStart time: {}'.format(str(self.start_time)))
-            print('\tType: {}'.format(type(self).__name__))
 
             print('\tInitiator: {}'.format(self.initiator))
             print('\t\tConfidence: {}'.format(round(self.initiator_confidence,1)))
