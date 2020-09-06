@@ -8,7 +8,8 @@ import random
 import csv
 import string
 import datetime
-from incident import Incident, ProximityIncident, TrialIndicent, StartIncident
+from incident import Incident, ProximityIncident, TrialIndicent, StartIncident, BracketIncident
+from InqscribeEvent import InqscribeEvent
 
 class Job:
     SESSION_NAME = 'script'
@@ -181,7 +182,7 @@ class Job:
                     in_prox_last = False
             return proximity, incident_list
         
-        def make_video(trajectories, proximities, video_name):
+        def make_video(trajectories, proximities, inqscribe_events: list, video_name):
             vidcap = cv2.VideoCapture(self.videoFile)
             success,image = vidcap.read()
             height, width = image.shape[:2]
@@ -210,6 +211,13 @@ class Job:
                     if(proximities[index] < self.proximity_range):
                         frame = cv2.circle(frame, (int(getBlack(trajectories[index])[0]), int(getBlack(trajectories[index])[1])), self.proximity_range, (0, 0, 255) , 2)
                     # add annotations to frame
+                    
+                    cv2.putText(frame, "{}".format(str(self.frame2videoTime(index)).split('.', 2)[0]), (40,100), font, fontScale, fontColor, lineType)
+                    if len(inqscribe_events):
+                        cv2.putText(frame, "{}".format(inqscribe_events[0]), (40,130), font, fontScale, fontColor, lineType)
+                        if (self.frame2videoTime(index+16) >= (inqscribe_events[0]).getTime()):
+                            inqscribe_events.pop(0)
+
                     out.write(frame)
 
                     # Display the resulting frame    
@@ -246,6 +254,38 @@ class Job:
                     return StartIncident(self.frame2videoTime(frame_count), beetle_char)
                 frame_count += 1
 
+        def get_bracket_incidents(trajectories, beetleId):
+            # create a history buffer (fill it with 0, 1 means on bracket)
+            history = [False] * 5
+
+            beetleChar = 'b'
+            if beetleId == 1:
+                beetleChar = 'w'
+
+            events = []
+            frame_count = 0
+            current_event = None
+            for frame in trajectories:
+                on_bracket = inBox(frame[0], self.bracketROI, Job.BRACKET_BUFFER)
+                # print(history)
+                if history.pop(): #remove the oldest element in the list, effectivly a queue
+                    if True not in history:
+                        if current_event:
+                            current_event.endIncident(self.frame2videoTime(frame_count))
+                            events.append(current_event)
+                        else:
+                            print('we got an issue here bud')
+                if (on_bracket and (True not in history)):
+                    current_event = BracketIncident(self.frame2videoTime(frame_count), beetleChar)
+                history.insert(0, on_bracket) #insert whether the beetle was on the bracket at the beginning of the list
+                frame_count += 1
+            print(events)
+            return events
+
+
+
+
+
         #Load in trajectories 'without gaps'
         self.trajectories_wo_gaps_path = 'session_' + Job.SESSION_NAME + '\\trajectories_wo_gaps\\trajectories_wo_gaps.npy'
         # self.trajectories_wo_gaps_path = (os.path.dirname(os.path.realpath(self.path))) + '\\session_' + Job.SESSION_NAME + '\\trajectories_wo_gaps\\trajectories_wo_gaps.npy'
@@ -262,6 +302,8 @@ class Job:
         incidents.append(trial_incident)
         incidents.append(find_first_move(trajectories, 0))
         incidents.append(find_first_move(trajectories, 1))
+        incidents.extend(get_bracket_incidents(trajectories, 0))
+        incidents.extend(get_bracket_incidents(trajectories, 1))
         save_csv(trajectories, proximities, "post_proc_output.csv")
         print('Data output saved to {}'.format("post_proc_output.csv"))
         for incident in incidents:
@@ -276,8 +318,8 @@ class Job:
         for event in inqscribe_events:
             print(event)
 
-        # make_video(trajectories, proximities, "post_proc_output.avi")
-        # print('Annotated video saved to {}'.format("post_proc_output.avi"))
+        make_video(trajectories, proximities, inqscribe_events, "post_proc_output.avi")
+        print('Annotated video saved to {}'.format("post_proc_output.avi"))
 
 
 if __name__ == '__main__' :

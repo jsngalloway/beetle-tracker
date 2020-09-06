@@ -30,6 +30,25 @@ class TrialIndicent(Incident):
             print('\tType: {}'.format(type(self).__name__))
             print('\tStart time: {}'.format(str(self.start_time)))
             if(self.end_time):
+                print('\tEnd time: {}'.format(str(self.end_time)))
+            else:
+                print("\tERROR: interaction has no end.")
+
+class BracketIncident(Incident):
+    def __init__(self,start_time, beetleChar):
+        self.beetleChar = beetleChar
+        self.start_time = start_time
+        self.inqscribe_events = []
+        self.inqscribe_events.append(InqscribeEvent(start_time, self.beetleChar, 'fu.' + 's'))
+
+    def endIncident(self, end_time):
+        self.end_time = end_time
+        self.inqscribe_events.append(InqscribeEvent(end_time, self.beetleChar, 'fu.' + 'e'))
+
+    def prettyPrint(self):
+            print('\tType: {}'.format(type(self).__name__))
+            print('\tStart time: {}'.format(str(self.start_time)))
+            if(self.end_time):
                 print('\End time: {}'.format(str(self.end_time)))
             else:
                 print("\tERROR: interaction has no end.")

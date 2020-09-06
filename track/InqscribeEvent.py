@@ -17,3 +17,6 @@ class InqscribeEvent:
 
     def __lt__(self, other):
          return self.time < other.time
+
+    def getTime(self):
+        return self.time
