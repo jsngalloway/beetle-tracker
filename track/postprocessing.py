@@ -8,6 +8,7 @@ import random
 import csv
 import string
 import datetime
+from incident import Incident, ProximityIncident, TrialIndicent, StartIncident
 
 class Job:
     SESSION_NAME = 'script'
@@ -45,6 +46,12 @@ class Job:
         # print(self.black)
     def getDirectory(self):
         return os.path.dirname(self.path)
+
+    def frame2videoTime(self, frame):
+        return datetime.timedelta(seconds=frame/Job.VIDEO_OUTPUT_FPS)
+
+    def frame2trialTime(self, frame):
+        return datetime.timedelta(seconds=frame*Job.SECONDS_PER_FRAME)
 
     def postprocess(self):
         print("Tracking complete. Beginning trajectory analysis...")
@@ -142,55 +149,7 @@ class Job:
             in_prox_last = False
             PROXIMITY_FRAME_RANGE = 10
             incident_list = []
-            class Incident:
-                def __init__(self,start_frame,white_avg_vel_in,black_avg_vel_in):
-                    self.start_frame = start_frame
-                    self.start_time_video = datetime.timedelta(seconds=start_frame/Job.VIDEO_OUTPUT_FPS)
-                    self.start_time_trial = datetime.timedelta(seconds=start_frame*Job.SECONDS_PER_FRAME)
-                    if(black_avg_vel_in > white_avg_vel_in):
-                        self.initiator = "Black"
-                        self.initiator_confidence = black_avg_vel_in - white_avg_vel_in
-                    else:
-                        self.initiator = "White"
-                        self.initiator_confidence = white_avg_vel_in - black_avg_vel_in
-                    self.end_time_video = None
-                    self.end_time_trial = None
-                    self.duration_video = None
-                    self.duration_trial = None
-                    self.deinitiator = None
-                    self.deinitiator_confidence = None
-                def format_time(self, t):
-                    s = t.strftime('%Y-%m-%d %H:%M:%S.%f')
-                    return s[:-3]
-                def endIncident(self, end_frame, white_avg_vel_out, black_avg_vel_out):
-                    self.end_frame = end_frame
-                    self.end_time_video = datetime.timedelta(seconds=self.end_frame/Job.VIDEO_OUTPUT_FPS)
-                    self.end_time_trial = datetime.timedelta(seconds=self.end_frame*Job.SECONDS_PER_FRAME)
-                    if(black_avg_vel_out < white_avg_vel_out):
-                        self.deinitiator = "Black"
-                        self.deinitiator_confidence = white_avg_vel_out - black_avg_vel_out
-                    else:
-                        self.deinitiator = "White"
-                        self.deinitiator_confidence = black_avg_vel_out - white_avg_vel_out
-                    self.duration_video = datetime.timedelta(seconds=(self.end_frame - self.start_frame)/Job.VIDEO_OUTPUT_FPS)
-                    self.duration_trial = datetime.timedelta(seconds=(self.end_frame - self.start_frame)*Job.SECONDS_PER_FRAME)
-                def prettyPrint(self):
-                        print('\tVideo start time: {}'.format(str(self.start_time_video)))
-                        print('\tTrial start time: {}'.format(str(self.start_time_trial)))
-                        print('\tInitiator: {}'.format(self.initiator))
-                        print('\t\tConfidence: {}'.format(round(self.initiator_confidence,1)))
-                        if(self.end_frame):
-                            print('\tVideo end time: {}'.format(str(self.end_time_video)))
-                            print('\tTrial end time: {}'.format(str(self.end_time_trial)))
-                            print('\tDe-initiator: {}'.format(self.deinitiator))
-                            print('\t\tConfidence: {}'.format(round(self.deinitiator_confidence,1)))
-                            print('\tDuration video: {}'.format(str(self.duration_video)))
-                            print('\tDuration trial: {}'.format(str(self.duration_trial)))
-                        else:
-                            print("\tERROR: interaction has no end.")
-                def printInq(self):
-                        initInitial = self.initiator[:1].lower()
-                        print('[{}] {}.prox'.format(str(self.start_time_video), initInitial))
+
 
             def calculateAvgVelInRange(i, trajectories, frame_range):
                 avg_pos = [(getBlack(trajectories[i])[0]+getWhite(trajectories[i])[0])/2, (getBlack(trajectories[i])[1]+getWhite(trajectories[i])[1])/2 ]
@@ -211,16 +170,14 @@ class Job:
                     proximity[i] = distance
                     if not in_prox_last:
                         white_avg_vel, black_avg_vel = calculateAvgVelInRange(i, trajectories, PROXIMITY_FRAME_RANGE)
-                        this_incident = Incident(i, white_avg_vel, black_avg_vel)
+                        this_incident = ProximityIncident(self.frame2videoTime(i), white_avg_vel, black_avg_vel)
                         incident_list.append(this_incident)
                         in_prox_last = True
                 else:
                     if in_prox_last:
                         #The interaction just ended
                         white_avg_vel, black_avg_vel = calculateAvgVelInRange(i, trajectories, PROXIMITY_FRAME_RANGE)
-                        incident_list[-1].endIncident(i, white_avg_vel, black_avg_vel)
-                        print('Contact Incident {}:'.format(len(incident_list)))
-                        incident_list[-1].prettyPrint()
+                        incident_list[-1].endIncident(self.frame2videoTime(i), white_avg_vel, black_avg_vel)
                     in_prox_last = False
             return proximity, incident_list
         
@@ -274,8 +231,20 @@ class Job:
                 data_writer.writerow(['seconds','Black x', 'Black y', 'White x', 'White y', 'dist', 'proximity', 'Black on bracket', 'White on bracket'])
                 time = 0
                 for index in range(len(trajectories)):
-                    time  = time + 4
+                    time  = time + Job.SECONDS_PER_FRAME
                     data_writer.writerow([time, getBlack(trajectories[index])[0], getBlack(trajectories[index])[1], getWhite(trajectories[index])[0], getWhite(trajectories[index])[1], proximities[index], inBox(getBlack(trajectories[index]), self.bracketROI, Job.BRACKET_BUFFER), inBox(getWhite(trajectories[index]), self.bracketROI, Job.BRACKET_BUFFER)])
+
+        def find_first_move(trajectories, beetleId):
+            beetle_char = 'b'
+            if beetleId == 1:
+                beetle_char = 'w'
+
+            start = [trajectories[0][beetleId][0], trajectories[0][beetleId][1]]
+            frame_count = 0
+            for frame in trajectories:
+                if dist(start, frame[beetleId])  > 10:
+                    return StartIncident(self.frame2videoTime(frame_count), beetle_char)
+                frame_count += 1
 
         #Load in trajectories 'without gaps'
         self.trajectories_wo_gaps_path = 'session_' + Job.SESSION_NAME + '\\trajectories_wo_gaps\\trajectories_wo_gaps.npy'
@@ -287,14 +256,25 @@ class Job:
         trajectories = all_trajectories[self.startFrame:self.videoEndFrame-1]
         print('---------- INTERPOLATION ----------')
         trajectories = verify_and_swap_black_white(interpolate(trajectories))
-        # trajectories = verify_and_swap_black_white(trajectories)
-        print('---------- PROXIMITY ANALYSIS ----------')
+        print('---------- INCIDENT ANALYSIS ----------')
         proximities, incidents = proximity_detection(trajectories)
-        for incident in incidents:
-            incident.printInq()
+        trial_incident = TrialIndicent(self.frame2videoTime(0), self.frame2videoTime(len(trajectories)))
+        incidents.append(trial_incident)
+        incidents.append(find_first_move(trajectories, 0))
+        incidents.append(find_first_move(trajectories, 1))
         save_csv(trajectories, proximities, "post_proc_output.csv")
         print('Data output saved to {}'.format("post_proc_output.csv"))
+        for incident in incidents:
+            incident.prettyPrint()
         print("Sample inqscribe data for this video:")
+        inqscribe_events = []
+        for incident in incidents:
+            for event in incident.inqscribe_events:
+                inqscribe_events.append(event)
+
+        inqscribe_events.sort()
+        for event in inqscribe_events:
+            print(event)
 
         # make_video(trajectories, proximities, "post_proc_output.avi")
         # print('Annotated video saved to {}'.format("post_proc_output.avi"))
@@ -306,7 +286,7 @@ if __name__ == '__main__' :
     start_cwd = os.getcwd()
     os.chdir(j.getDirectory())
 
-    os.system(j.cmd)
+    # os.system(j.cmd)
 
     j.postprocess()
 
