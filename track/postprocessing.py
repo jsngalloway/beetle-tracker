@@ -332,8 +332,8 @@ class Job:
         for event in inqscribe_events:
             print(event)
 
-        # make_video(trajectories, proximities, inqscribe_events, "post_proc_output.avi")
-        # print('Annotated video saved to {}'.format("post_proc_output.avi"))
+        make_video(trajectories, proximities, inqscribe_events, "post_proc_output.avi")
+        print('Annotated video saved to {}'.format("post_proc_output.avi"))
         save_inqscribe(self.path, inqscribe_events)
 
 if __name__ == '__main__' :
