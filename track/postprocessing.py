@@ -33,18 +33,8 @@ class Job:
         self.proximity_range = data['proximity_range']
         self.bracketROI = data['bracketROI']
         self.videoFile = data['video']
-        # print("Black at {}".format(self.black))
         data_file.close()
 
-        # lines = data_file.readlines()
-        # self.cmd = lines[0]
-        # self.black = eval(lines[1])
-        # self.startFrame = int(lines[2])
-        # self.videoEndFrame = int(lines[3])
-        # self.proximity_range = int(lines[4])
-        # self.bracketROI = eval(lines[5])
-        # print(self.cmd)
-        # print(self.black)
     def getDirectory(self):
         return os.path.dirname(self.path)
 
@@ -55,7 +45,7 @@ class Job:
         return datetime.timedelta(seconds=frame*Job.SECONDS_PER_FRAME)
 
     def postprocess(self):
-        print("Tracking complete. Beginning trajectory analysis...")
+        
         def dist(pointA,pointB): 
             d = math.sqrt((pointB[0] - pointA[0])**2 + (pointB[1] - pointA[1])**2)  
             return d
@@ -127,61 +117,132 @@ class Job:
 
             return linear_interpolation(prox_interpolation(trajectories))
             # trajectories = linear_interpolation(trajectories)
-
         def verify_and_swap_black_white(trajectories):
             black_to_id0 = dist(self.black, trajectories[0][0])
-            print("Black is {} away from id0.".format(black_to_id0))
+            # print("Black is {} away from id0.".format(black_to_id0))
             black_to_id1 = dist(self.black, trajectories[0][1])
             if (black_to_id0 > black_to_id1):
                 #1 is black, 0 is white: they need to be swapped
-                print("Swapping beetle ids...")
+                print("Beetle Ids swapped.")
                 for i in range(len(trajectories)):
                     tmp = np.copy(trajectories[i][0])
                     trajectories[i][0] = trajectories[i][1]
                     trajectories[i][1] = tmp
             black_to_id0 = dist(self.black, trajectories[0][0])
-            print("Black is {} away from id0.".format(black_to_id0))
+            # print("Black is {} away from id0.".format(black_to_id0))
             return trajectories
-        
-        def proximity_detection(trajectories):
-            proximity = np.empty(len(trajectories), float)
-            # velocity_to_avg_pos = np.empty((len(trajectories), 2), float)
+        def find_all_incidents(trajectories):
+            incidents = []
+            def proximity_detection(trajectories):
+                proximity = np.empty(len(trajectories), float)
+                # velocity_to_avg_pos = np.empty((len(trajectories), 2), float)
 
-            in_prox_last = False
-            PROXIMITY_FRAME_RANGE = 10
-            incident_list = []
+                in_prox_last = False
+                PROXIMITY_FRAME_RANGE = 10
+                incident_list = []
 
 
-            def calculateAvgVelInRange(i, trajectories, frame_range):
-                avg_pos = [(getBlack(trajectories[i])[0]+getWhite(trajectories[i])[0])/2, (getBlack(trajectories[i])[1]+getWhite(trajectories[i])[1])/2 ]
-                incident = trajectories[i-frame_range:i+frame_range]
-                black_avg_vel = 0
-                white_avg_vel = 0
-                for j in range(1, len(incident)):
-                    black_avg_vel += dist(getBlack(incident[j-1]), avg_pos) - dist(getBlack(incident[j]), avg_pos)
-                    white_avg_vel += dist(getWhite(incident[j-1]), avg_pos) - dist(getWhite(incident[j]), avg_pos)
-                black_avg_vel = black_avg_vel/(len(incident)-1)
-                white_avg_vel = white_avg_vel/(len(incident)-1)
-                return white_avg_vel, black_avg_vel
+                def calculateAvgVelInRange(i, trajectories, frame_range):
+                    avg_pos = [(getBlack(trajectories[i])[0]+getWhite(trajectories[i])[0])/2, (getBlack(trajectories[i])[1]+getWhite(trajectories[i])[1])/2 ]
+                    incident = trajectories[i-frame_range:i+frame_range]
+                    black_avg_vel = 0
+                    white_avg_vel = 0
+                    for j in range(1, len(incident)):
+                        black_avg_vel += dist(getBlack(incident[j-1]), avg_pos) - dist(getBlack(incident[j]), avg_pos)
+                        white_avg_vel += dist(getWhite(incident[j-1]), avg_pos) - dist(getWhite(incident[j]), avg_pos)
+                    black_avg_vel = black_avg_vel/(len(incident)-1)
+                    white_avg_vel = white_avg_vel/(len(incident)-1)
+                    return white_avg_vel, black_avg_vel
 
-            for i in range(PROXIMITY_FRAME_RANGE, len(proximity)-PROXIMITY_FRAME_RANGE):
-                distance = dist(getBlack(trajectories[i]), getWhite(trajectories[i]))
-                proximity[i] = distance
-                if (distance < self.proximity_range):
+                for i in range(PROXIMITY_FRAME_RANGE, len(proximity)-PROXIMITY_FRAME_RANGE):
+                    distance = dist(getBlack(trajectories[i]), getWhite(trajectories[i]))
                     proximity[i] = distance
-                    if not in_prox_last:
-                        white_avg_vel, black_avg_vel = calculateAvgVelInRange(i, trajectories, PROXIMITY_FRAME_RANGE)
-                        this_incident = ProximityIncident(self.frame2videoTime(i), white_avg_vel, black_avg_vel)
-                        incident_list.append(this_incident)
-                        in_prox_last = True
-                else:
-                    if in_prox_last:
-                        #The interaction just ended
-                        white_avg_vel, black_avg_vel = calculateAvgVelInRange(i, trajectories, PROXIMITY_FRAME_RANGE)
-                        incident_list[-1].endIncident(self.frame2videoTime(i), white_avg_vel, black_avg_vel)
-                    in_prox_last = False
-            return proximity, incident_list
-        
+                    if (distance < self.proximity_range):
+                        proximity[i] = distance
+                        if not in_prox_last:
+                            white_avg_vel, black_avg_vel = calculateAvgVelInRange(i, trajectories, PROXIMITY_FRAME_RANGE)
+                            this_incident = ProximityIncident(self.frame2videoTime(i), white_avg_vel, black_avg_vel)
+                            incident_list.append(this_incident)
+                            in_prox_last = True
+                    else:
+                        if in_prox_last:
+                            #The interaction just ended
+                            white_avg_vel, black_avg_vel = calculateAvgVelInRange(i, trajectories, PROXIMITY_FRAME_RANGE)
+                            incident_list[-1].endIncident(self.frame2videoTime(i), white_avg_vel, black_avg_vel)
+                        in_prox_last = False
+                return proximity, incident_list
+            def find_first_move(trajectories, beetleId):
+                beetle_char = 'b'
+                if beetleId == 1:
+                    beetle_char = 'w'
+
+                start = [trajectories[0][beetleId][0], trajectories[0][beetleId][1]]
+                frame_count = 0
+                for frame in trajectories:
+                    if dist(start, frame[beetleId])  > 10:
+                        return StartIncident(self.frame2videoTime(frame_count), beetle_char)
+                    frame_count += 1
+            def get_bracket_incidents(trajectories, beetleId):
+                # create a history buffer (fill it with 0, 1 means on bracket)
+                history = [False] * 5
+
+                beetleChar = 'b'
+                if beetleId == 1:
+                    beetleChar = 'w'
+
+                events = []
+                frame_count = 0
+                current_event = None
+                for frame in trajectories:
+                    on_bracket = inBox(frame[beetleId], self.bracketROI, Job.BRACKET_BUFFER)
+                    # print(history)
+                    if history.pop(): #remove the oldest element in the list, effectivly a queue
+                        if True not in history:
+                            if current_event:
+                                current_event.endIncident(self.frame2videoTime(frame_count))
+                                events.append(current_event)
+                                current_event = None
+                            else:
+                                print('we got an issue here bud')
+                    if (on_bracket and (current_event == None)):
+                        current_event = BracketIncident(self.frame2videoTime(frame_count), beetleChar)
+                    history.insert(0, on_bracket) #insert whether the beetle was on the bracket at the beginning of the list
+                    frame_count += 1
+                return events
+
+
+            proximity_incidents = []
+            proximities, proximity_incidents = proximity_detection(trajectories)
+            print("Found: [{}] proximity incidents".format(len(proximity_incidents)))
+            incidents.extend(proximity_incidents)
+
+            trial_incidents = TrialIndicent(self.frame2videoTime(0), self.frame2videoTime(len(trajectories)))
+            print("Found: [1] trial incidents")
+            incidents.append(trial_incidents)
+
+            first_move_incidents = []
+            first_move_incidents.append(find_first_move(trajectories, 0))#beetle 0 is black
+            first_move_incidents.append(find_first_move(trajectories, 1))#beetle 1 is white
+            print("Found: [{}] first-move incidents".format(len(first_move_incidents)))
+            incidents.extend(first_move_incidents)
+
+            bracket_incidents = []
+            bracket_incidents.extend(get_bracket_incidents(trajectories, 0))
+            bracket_incidents.extend(get_bracket_incidents(trajectories, 1))
+            print("Found: [{}] bracket incidents".format(len(bracket_incidents)))
+            incidents.extend(bracket_incidents)
+            return proximities, incidents
+
+        def save_inqscribe(filename, events):
+            events.insert(0, (InqscribeEvent(self.frame2videoTime(0), 'Note:' + filename, None)))
+            f = open(filename + ".inqscr", mode="w")
+            f.write("app=InqScribe\n")
+            event_str = ""
+            for event in events:
+               event_str += (str(event) + "\\r")
+            f.write("text={}".format(event_str))
+            f.close()
+    
         def make_video(trajectories, proximities, inqscribe_events: list, video_name):
             vidcap = cv2.VideoCapture(self.videoFile)
             success,image = vidcap.read()
@@ -237,72 +298,24 @@ class Job:
 
             # Closes all the frames
             cv2.destroyAllWindows() 
-
         def save_csv(trajectories, proximities, file_name):
             with open(file_name, mode='w') as csv_file:
                 data_writer = csv.writer(csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL, lineterminator='\n')
-                data_writer.writerow(['seconds','Black x', 'Black y', 'White x', 'White y', 'dist', 'proximity', 'Black on bracket', 'White on bracket'])
+                data_writer.writerow(['seconds','Black x', 'Black y', 'White x', 'White y', 'In Proximity', 'Black on bracket', 'White on bracket'])
                 time = 0
                 for index in range(len(trajectories)):
                     time  = time + Job.SECONDS_PER_FRAME
-                    data_writer.writerow([time, getBlack(trajectories[index])[0], getBlack(trajectories[index])[1], getWhite(trajectories[index])[0], getWhite(trajectories[index])[1], proximities[index], inBox(getBlack(trajectories[index]), self.bracketROI, Job.BRACKET_BUFFER), inBox(getWhite(trajectories[index]), self.bracketROI, Job.BRACKET_BUFFER)])
-
-        def find_first_move(trajectories, beetleId):
-            beetle_char = 'b'
-            if beetleId == 1:
-                beetle_char = 'w'
-
-            start = [trajectories[0][beetleId][0], trajectories[0][beetleId][1]]
-            frame_count = 0
-            for frame in trajectories:
-                if dist(start, frame[beetleId])  > 10:
-                    return StartIncident(self.frame2videoTime(frame_count), beetle_char)
-                frame_count += 1
-
-        def get_bracket_incidents(trajectories, beetleId):
-            # create a history buffer (fill it with 0, 1 means on bracket)
-            history = [False] * 5
-
-            beetleChar = 'b'
-            if beetleId == 1:
-                beetleChar = 'w'
-
-            events = []
-            frame_count = 0
-            current_event = None
-            for frame in trajectories:
-                on_bracket = inBox(frame[beetleId], self.bracketROI, Job.BRACKET_BUFFER)
-                # print(history)
-                if history.pop(): #remove the oldest element in the list, effectivly a queue
-                    if True not in history:
-                        if current_event:
-                            current_event.endIncident(self.frame2videoTime(frame_count))
-                            events.append(current_event)
-                            current_event = None
-                        else:
-                            print('we got an issue here bud')
-                if (on_bracket and (current_event == None)):
-                    current_event = BracketIncident(self.frame2videoTime(frame_count), beetleChar)
-                history.insert(0, on_bracket) #insert whether the beetle was on the bracket at the beginning of the list
-                frame_count += 1
-            print(events)
-            return events
-
-
-        def save_inqscribe(filename, events):
-            events.insert(0, (InqscribeEvent(self.frame2videoTime(0), 'Note:' + filename, None)))
-            f = open(filename + ".inqscr", mode="w")
-            f.write("app=InqScribe\n")
-            event_str = ""
-            for event in events:
-               event_str += (str(event) + "\\r")
-            f.write("text={}".format(event_str))
-            f.close()
-
+                    data_writer.writerow([time,
+                                        getBlack(trajectories[index])[0],
+                                        getBlack(trajectories[index])[1],
+                                        getWhite(trajectories[index])[0],
+                                        getWhite(trajectories[index])[1],
+                                        proximities[index],
+                                        inBox(getBlack(trajectories[index]), self.bracketROI, Job.BRACKET_BUFFER),
+                                        inBox(getWhite(trajectories[index]), self.bracketROI, Job.BRACKET_BUFFER)])
 
         #Load in trajectories 'without gaps'
         self.trajectories_wo_gaps_path = 'session_' + Job.SESSION_NAME + '\\trajectories_wo_gaps\\trajectories_wo_gaps.npy'
-        # self.trajectories_wo_gaps_path = (os.path.dirname(os.path.realpath(self.path))) + '\\session_' + Job.SESSION_NAME + '\\trajectories_wo_gaps\\trajectories_wo_gaps.npy'
         trajectories_dict = np.load(self.trajectories_wo_gaps_path, allow_pickle=True).item()
         all_trajectories = trajectories_dict["trajectories"]
 
@@ -310,40 +323,41 @@ class Job:
         trajectories = all_trajectories[self.startFrame:self.videoEndFrame-1]
         print('---------- INTERPOLATION ----------')
         trajectories = verify_and_swap_black_white(interpolate(trajectories))
+
         print('---------- INCIDENT ANALYSIS ----------')
-        proximities, incidents = proximity_detection(trajectories)
-        trial_incident = TrialIndicent(self.frame2videoTime(0), self.frame2videoTime(len(trajectories)))
-        incidents.append(trial_incident)
-        incidents.append(find_first_move(trajectories, 0))
-        incidents.append(find_first_move(trajectories, 1))
-        incidents.extend(get_bracket_incidents(trajectories, 0))
-        incidents.extend(get_bracket_incidents(trajectories, 1))
+        proximities, incidents = find_all_incidents(trajectories)
+        print("TOTAL: [{}] incidents found".format(len(incidents)))
+        
+        print('---------- DATA EXPORT ----------')
         save_csv(trajectories, proximities, "post_proc_output.csv")
-        print('Data output saved to {}'.format("post_proc_output.csv"))
-        for incident in incidents:
-            incident.prettyPrint()
-        print("Sample inqscribe data for this video:")
+        print('Position data saved to: {}'.format("post_proc_output.csv"))
+        
         inqscribe_events = []
         for incident in incidents:
             for event in incident.inqscribe_events:
                 inqscribe_events.append(event)
-
         inqscribe_events.sort()
-        for event in inqscribe_events:
-            print(event)
+        save_inqscribe(self.path, inqscribe_events)
+        print('Inqscribe file saved to: {}'.format("post_proc_output.csv"))
+
+        # for incident in incidents:
+        #     incident.prettyPrint()
+
+        # for event in inqscribe_events:
+        #     print(event)    
 
         make_video(trajectories, proximities, inqscribe_events, "post_proc_output.avi")
         print('Annotated video saved to {}'.format("post_proc_output.avi"))
-        save_inqscribe(self.path, inqscribe_events)
+        
 
 if __name__ == '__main__' :
     j = Job(sys.argv[1])
 
     start_cwd = os.getcwd()
     os.chdir(j.getDirectory())
-
     # os.system(j.cmd)
 
+    print("Tracking complete. Beginning analysis...")
     j.postprocess()
 
     os.chdir(start_cwd)
