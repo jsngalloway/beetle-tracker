@@ -26,7 +26,6 @@ class Video:
         self.path = p
         #TODO this is arbitrary
         self.proximity_range = 45
-        print("THIS IS NOW IN THE NEW INITLIAZE FNCTION {}".format(self.path))
         self.vidcap = cv2.VideoCapture(self.path)
         self.videoFile = os.path.basename(self.path)
 
