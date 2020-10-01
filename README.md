@@ -18,7 +18,7 @@ You're all set!
 Run the tagging script by making sure you're in the root of the repo and run `python tag/GUI_preprocessing.py` If you see a dialog appear, you're set. Practice tagging a video in `/sample_videos`
 
 ### Track
-(From anaconda prompt with an idtrackerai env)
+(From anaconda prompt with an idtrackerai env [install link](https://idtrackerai.readthedocs.io/en/latest/how_to_install.html))
 1. Install using the above steps
 2. Tag a video, or use the sample provided in `/track_sample`
 3. Run `python track/postprocessing.py path/to/the/file.json` (note that the generated .json file must be next to the video)
