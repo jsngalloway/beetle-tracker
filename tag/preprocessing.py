@@ -173,9 +173,7 @@ class Video:
 
             imgray = cv2.cvtColor(img_cut, cv2.COLOR_BGR2GRAY)
             _, thresh = cv2.threshold(imgray, 127, 255, 0)
-            ### Something funny happens with the next line depending on the version of opencv?
-            _, contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            # contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
             largest = 0
             for i in range(len(contours)):
                 if cv2.contourArea(contours[i]) > cv2.contourArea(contours[largest]):
