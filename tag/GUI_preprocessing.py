@@ -18,6 +18,7 @@ class Runner:
 
     def __init__(self):
         root = tk.Tk()
+        root.title("Beetle Tracker")
         self.currentVideo = Video()
         self.statuses = self.Statuses()
         self.savePath = os.getcwd()
@@ -68,17 +69,17 @@ class Runner:
         arenaTxt.grid(sticky = tk.W, column=1, row=3)
         self.arenaStatus.grid(sticky = tk.W, column=2, row=3)
 
-        self.selectBeetleBtn.grid(column=0, row=4)
-        beetleTxt.grid(sticky = tk.W, column=1, row=4)
-        self.beetleStatus.grid(sticky = tk.W, column=2, row=4)
+        self.selectStartBtn.grid(column=0, row=4)
+        startTxt.grid(sticky = tk.W, column=1, row=4)
+        self.startStatus.grid(sticky = tk.W, column=2, row=4)
 
-        self.selectStartBtn.grid(column=0, row=5)
-        startTxt.grid(sticky = tk.W, column=1, row=5)
-        self.startStatus.grid(sticky = tk.W, column=2, row=5)
+        self.selectEndBtn.grid(column=0, row=5)
+        endTxt.grid(sticky = tk.W, column=1, row=5)
+        self.endStatus.grid(sticky = tk.W, column=2, row=5)
 
-        self.selectEndBtn.grid(column=0, row=6)
-        endTxt.grid(sticky = tk.W, column=1, row=6)
-        self.endStatus.grid(sticky = tk.W, column=2, row=6)
+        self.selectBeetleBtn.grid(column=0, row=6)
+        beetleTxt.grid(sticky = tk.W, column=1, row=6)
+        self.beetleStatus.grid(sticky = tk.W, column=2, row=6)
         
         self.startButton.grid(columnspan=3, row = 7)
         instructions.grid(columnspan=3, row = 8)
@@ -158,8 +159,6 @@ class Runner:
 
             self.selectBracketBtn["state"] = "normal"
             self.selectArenaBtn["state"] = "normal"
-            self.selectStartBtn["state"] = "normal"
-            self.selectEndBtn["state"] = "normal"
         else:
             self.videoStatus["fg"] = "red"
             self.videoStatus["text"] = "None"
@@ -178,9 +177,13 @@ class Runner:
         if(self.statuses.arena):
             self.arenaStatus["fg"] = "green"
             self.arenaStatus["text"] = "Done"
+            self.selectStartBtn["state"] = "normal"
+            self.selectEndBtn["state"] = "normal"
         else:
             self.arenaStatus["fg"] = "red"
             self.arenaStatus["text"] = "None"
+            self.selectStartBtn["state"] = "disabled"
+            self.selectEndBtn["state"] = "disabled"
 
         if(self.statuses.start):
             self.startStatus["fg"] = "green"
