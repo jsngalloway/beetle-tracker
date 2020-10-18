@@ -10,17 +10,15 @@ import json
 import tkinter as tk
 from tkinter import filedialog
 from PIL import ImageTk, Image
-# import matplotlib.pyplot as plt
-# from matplotlib.patches import Circle
 
 class Video:
     SESSION_NAME = 'script'
-    START_TIME = 20000 #20 seconds, the time we initially jump to
+    START_TIME = 20 * 1000 #20 seconds, the time we initially jump to
     BRACKET_BUFFER = 10
     WINDOW_NAME = 'window'
 
     def __init__(self):
-        print("made empty video")
+        pass
         
     def initialize(self, p):
         self.path = p
@@ -44,35 +42,39 @@ class Video:
         # ------------------- End Init Section ---------------------
 
         if not success:
-            print('An unknown error has occurred processing the video, contact Jesse.')
+            print('Video failed to load. Verify file is a good video file or contact Jesse.')
             print(self.path)
-
-
+            exit(1)
 
     def getBracketROIWrapper(self):
         self.bracketROI = self.getBracketROI(self.image, Video.WINDOW_NAME)
         return len(self.bracketROI)
+
     def getArenaROIWrapper(self):
         (self.basicArenaROI, self.arenaROIstr) = self.getArenaROI2(self.image, "Select Arena...")
         return len(self.basicArenaROI)
+
     def getBeetleSelectWrapper(self):
-        # if self.startFrame
         self.black = self.beetleSelect(self.image, Video.WINDOW_NAME)
         return self.black
+
     def getFirstFrameWrapper(self):
         self.startFrame = self.getFirstFrame(Video.WINDOW_NAME)
         return self.startFrame
+
     def getLastFrameWrapper(self):
         self.videoEndFrame = self.getLastFrame(Video.WINDOW_NAME)
         return self.videoEndFrame
+
     def finishAndSave(self):
         cv2.destroyAllWindows()
+
+        # Print out data to show successful save
         print("Processing Complete.\n\tStart Frame: {}/{}\n\tArena: {}\n\tBracket (x,y,w,h): {}".format(self.startFrame, self.length, self.arenaROIstr, self.bracketROI))
         self.savePostProcData()
 
     def getTrackingCommand(self):
-            #TODO does video end at the end?
-            cmd = "idtrackerai terminal_mode --_video \"{}\" --_session {} --_intensity [0,162] --_area [150,60000] --_range [{},{}] --_nblobs 2 --_roi \"{}\" --exec track_video".format(self.videoFile, Video.SESSION_NAME, self.startFrame, self.length, self.arenaROIstr)
+            cmd = "idtrackerai terminal_mode --_video \"{}\" --_session {} --_intensity [0,162] --_area [150,60000] --_range [{},{}] --_nblobs 2 --_roi \"{}\" --exec track_video".format(self.videoFile, Video.SESSION_NAME, self.startFrame, self.videoEndFrame, self.arenaROIstr)
             return cmd
 
     def beetleSelect(self, img, windowName):
@@ -127,20 +129,16 @@ class Video:
 
             def draw_circle(self,event,x,y,flags,param):
                 if event == cv2.EVENT_LBUTTONUP:
-                    print("Marked areas as foreground, press enter to regenerate")
-                    # cv2.circle(img,(x,y),8,(255,0,0),-1)
+                    print("Marked areas as foreground, press enter to regenerate contours")
                     for i in range(y-10, y+10):
                         for j in range(x-10, x+10):
                             self.mask[i][j] = cv2.GC_FGD
-                            # cv2.circle(disp_img,(j,i),1,(255,0,0),-1)
                     self.updated = True
                 if event == cv2.EVENT_RBUTTONUP:
-                    print("Marked areas as background, press enter to regenerate")
-                    # cv2.circle(img,(x,y),8,(0,255,0),-1)
+                    print("Marked areas as background, press enter to regenerate contours")
                     for i in range(y-10, y+10):
                         for j in range(x-10, x+10):
                             self.mask[i][j] = cv2.GC_BGD
-                            # cv2.circle(disp_img,(j,i),1,(255,0,255),-1)
                     self.updated = True
 
             def resetUpdateFlag(self):
@@ -159,9 +157,9 @@ class Video:
         rect = cv2.selectROI(windowName, img)
         cv2.namedWindow(windowName)
 
-       
         cv2.setMouseCallback(windowName,mm.draw_circle)
 
+        # Initialize the contours using the rectangle we drew using selectROI
         msk, bgdModel, fgdModel = cv2.grabCut(img,mm.getMask(),rect,bgdModel,fgdModel,3,cv2.GC_INIT_WITH_RECT)
         mm.setMask(msk)
         contours = None
@@ -179,25 +177,43 @@ class Video:
                 if cv2.contourArea(contours[i]) > cv2.contourArea(contours[largest]):
                     largest = i
 
-
             disp_img = np.copy(img_cut)
-            cv2.drawContours(disp_img, contours, largest, (0,255,0), 2)
-            cv2.imshow(windowName, disp_img)
-            
+            cv2.drawContours(disp_img, contours, largest, (0,0,255), 2)
 
+            while(1):
+                # RGBTransform().mix_with((255, 0, 0),factor=.30).applied_to(disp_img)
+                invert_mask = 1-mm.getMask()
+                print(mm.getMask())
+                disp_img[:, :, 1] = (cv2.bitwise_and(img_cut, img_cut, mask=mm.getMask()*255)[:, :, 1])# + (mm.getMask() * 255))
+                disp_img[:, :, 2] = (cv2.bitwise_and(img_cut, img_cut, mask=invert_mask*255)[:, :, 2])# + (mm.getMask() * 255))
+                # disp_img[:, :, 2] = cv2.bitwise_and(img_cut, img_cut, mask=invert_mask)[:, :, 2] * 250
+                cv2.drawContours(disp_img, contours, largest, (255,0,0), 2)
+                # disp_img[:,:,2] = img_cut[:,:,2] + np.logical_not(mm.getMask())*225
+                # disp_img[:,:,1] = img_cut[:,:,1] + (mm.getMask())*225
+
+                k = cv2.waitKey(100)
+                if not k == -1:
+                    break
+                cv2.imshow(windowName, disp_img)
+
+            
+            
             # wait for the user to hit enter to regen the model
-            if cv2.waitKey(0):
+            if cv2.waitKey(1):
+                # If the user hits enter without making an update we break
                 if not mm.getUpdateFlag():
                     break
                 else:
+                    # The user made an update so we'll re-generate the model
                     mm.resetUpdateFlag()
                     print("Regenerating model")
                     msk, bgdModel, fgdModel = cv2.grabCut(img,mm.getMask(),None,bgdModel,fgdModel,3,cv2.GC_INIT_WITH_MASK)
                     mm.setMask(msk)
                     print("Done.")
 
+        # Remove the callback we assigned earlier
         cv2.setMouseCallback(windowName, lambda *args : None)
-        # cv2.destroyAllWindows()
+
         cv2.destroyWindow(windowName)
         return(rect, contourToString(contours[largest]))
 
