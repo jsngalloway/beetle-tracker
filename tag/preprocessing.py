@@ -11,6 +11,18 @@ import tkinter as tk
 from tkinter import filedialog
 from PIL import ImageTk, Image
 
+def addInstructionsToImage(img, *args):
+    img_copy = np.copy(img)
+    font                   = cv2.FONT_HERSHEY_PLAIN 
+    bottomLeftCornerOfText = [30,30]
+    fontScale              = 1.125
+    fontColor              = (255,0,0) #BGR
+    lineType               = 1
+    for text in args:
+        cv2.putText(img_copy, text, tuple(bottomLeftCornerOfText), font, fontScale, fontColor, lineType)
+        bottomLeftCornerOfText[1] = bottomLeftCornerOfText[1] + 20
+    return img_copy
+
 class Video:
     SESSION_NAME = 'script'
     START_TIME = 20 * 1000 #20 seconds, the time we initially jump to
@@ -39,7 +51,6 @@ class Video:
         self.black = None
         self.startFrame = None
         self.videoEndFrame = None
-        # ------------------- End Init Section ---------------------
 
         if not success:
             print('Video failed to load. Verify file is a good video file or contact Jesse.')
@@ -78,6 +89,7 @@ class Video:
             return cmd
 
     def beetleSelect(self, img, windowName):
+        img = addInstructionsToImage(img, "Click near black beetle. Enter to continue")
         print("Click to select black beetle. Press any key to continue.")
         class CoordinateStore:
             def __init__(self, image):
@@ -102,13 +114,19 @@ class Video:
 
         cv2.imshow(windowName, img)
         cv2.setMouseCallback(windowName, coordStore.select_point)
-        cv2.waitKey(0)
+        k = None
+        #accept space or enter to continue
+        while not ((k == 32) or (k == 13)):
+            k = cv2.waitKey(50)
         cv2.setMouseCallback(windowName, lambda *args : None)
         retVal = coordStore.getBlack()
         cv2.destroyWindow(windowName)
         return retVal
 
     def getArenaROI2(self, img, windowName):
+        """
+        Accepts a contour and converts it into a string formatted for idtrackerai
+        """
         def contourToString(contour):
             point_lst = ["[["]
             first = True
@@ -122,6 +140,10 @@ class Video:
             point_lst.append("]]")
             return ''.join(point_lst)
 
+        """
+        Class MaskManager Creates a mask of the same size of the video
+        It's hooked in as a callback and processes mouse clicks to update the mask
+        """
         class MaskManager:
             def __init__(self, img):
                 self.mask = np.zeros(img.shape[:2],np.uint8)
@@ -129,13 +151,14 @@ class Video:
 
             def draw_circle(self,event,x,y,flags,param):
                 if event == cv2.EVENT_LBUTTONUP:
-                    print("Marked areas as foreground, press enter to regenerate contours")
+                    # Left click marks as foreground
                     for i in range(y-10, y+10):
                         for j in range(x-10, x+10):
                             self.mask[i][j] = cv2.GC_FGD
                     self.updated = True
+
                 if event == cv2.EVENT_RBUTTONUP:
-                    print("Marked areas as background, press enter to regenerate contours")
+                    # Right click marks as background
                     for i in range(y-10, y+10):
                         for j in range(x-10, x+10):
                             self.mask[i][j] = cv2.GC_BGD
@@ -154,8 +177,16 @@ class Video:
         mm = MaskManager(img)
         bgdModel = np.zeros((1,65),np.float64)
         fgdModel = np.zeros((1,65),np.float64)
-        rect = cv2.selectROI(windowName, img)
-        cv2.namedWindow(windowName)
+        
+        print("Selecting general Arena ROI...", end="")
+        rect = [0,0,0,0]
+        while (rect == [0,0,0,0]):
+            rect = cv2.selectROI(windowName, addInstructionsToImage(img, "Drag to select entire Arena. Enter to continue, drag again to reset"))
+        print("done")
+
+        cv2.imshow(windowName, addInstructionsToImage(img, "Loading mask..."))
+        cv2.waitKey(2)
+        # cv2.namedWindow(windowName)
 
         cv2.setMouseCallback(windowName,mm.draw_circle)
 
@@ -181,35 +212,28 @@ class Video:
             cv2.drawContours(disp_img, contours, largest, (0,0,255), 2)
 
             while(1):
-                # RGBTransform().mix_with((255, 0, 0),factor=.30).applied_to(disp_img)
                 invert_mask = 1-mm.getMask()
-                print(mm.getMask())
-                disp_img[:, :, 1] = (cv2.bitwise_and(img_cut, img_cut, mask=mm.getMask()*255)[:, :, 1])# + (mm.getMask() * 255))
-                disp_img[:, :, 2] = (cv2.bitwise_and(img_cut, img_cut, mask=invert_mask*255)[:, :, 2])# + (mm.getMask() * 255))
-                # disp_img[:, :, 2] = cv2.bitwise_and(img_cut, img_cut, mask=invert_mask)[:, :, 2] * 250
+                disp_img[:, :, 1] = (cv2.bitwise_and(img_cut, img_cut, mask=mm.getMask()*255)[:, :, 1])
+                disp_img[:, :, 2] = (cv2.bitwise_and(img_cut, img_cut, mask=invert_mask*255)[:, :, 2])
                 cv2.drawContours(disp_img, contours, largest, (255,0,0), 2)
-                # disp_img[:,:,2] = img_cut[:,:,2] + np.logical_not(mm.getMask())*225
-                # disp_img[:,:,1] = img_cut[:,:,1] + (mm.getMask())*225
+                cv2.imshow(windowName, addInstructionsToImage(disp_img, "Left-click = mark Arena", "Right-click = mark background", "Enter to continue"))
 
-                k = cv2.waitKey(100)
+                k = cv2.waitKey(10)
                 if not k == -1:
                     break
-                cv2.imshow(windowName, disp_img)
 
-            
-            
-            # wait for the user to hit enter to regen the model
-            if cv2.waitKey(1):
                 # If the user hits enter without making an update we break
-                if not mm.getUpdateFlag():
-                    break
-                else:
-                    # The user made an update so we'll re-generate the model
-                    mm.resetUpdateFlag()
-                    print("Regenerating model")
-                    msk, bgdModel, fgdModel = cv2.grabCut(img,mm.getMask(),None,bgdModel,fgdModel,3,cv2.GC_INIT_WITH_MASK)
-                    mm.setMask(msk)
-                    print("Done.")
+            if not mm.getUpdateFlag():
+                break
+            else:
+                # The user made an update so we'll re-generate the model
+                cv2.imshow(windowName, addInstructionsToImage(disp_img, "Re-generating model..."))
+                cv2.waitKey(1)
+                mm.resetUpdateFlag()
+                print("Regenerating model...", end="")
+                msk, bgdModel, fgdModel = cv2.grabCut(img,mm.getMask(),None,bgdModel,fgdModel,3,cv2.GC_INIT_WITH_MASK)
+                mm.setMask(msk)
+                print("done")
 
         # Remove the callback we assigned earlier
         cv2.setMouseCallback(windowName, lambda *args : None)
@@ -247,7 +271,7 @@ class Video:
         return bracket
 
     def getFirstFrame(self, windowName):
-        return self.autoGetFrame("Select First Frame", 10, 1.5, "Start (fr 10)")
+        return self.autoGetFrame("Select First Frame", 10, 1.5, "Start")
     def getLastFrame(self, windowName):
         return self.autoGetFrame("Select Last Frame", self.length-400, 0.82, "Near end (fr {})".format(self.length-400))
 
@@ -264,32 +288,30 @@ class Video:
             for i in range (0, 500):
                 x = getRandX(r)
                 y = getRandY(r)
-                # print("testing ({},{}) -> {}".format(x, y,image[x,y,0]))
-                sum = sum + img[x,y,0]
+                sum = sum + img[y,x,0] #I'm still not sure why x and y are swapped here
             return sum/500
 
         success, img = self.vidcap.read()
         cv2.imshow(windowName, img)
+        cv2.waitKey(1)
 
         if success:
             strt = getBrightness(self, self.basicArenaROI, img)
         else:
             print("Error autodetecting brightness")
 
+        autoDetectedFrame: int = None
+
         def onChange(trackbarValue):
             self.vidcap.set(cv2.CAP_PROP_POS_FRAMES,startPoint+trackbarValue)
             success,img = self.vidcap.read()
-            cv2.imshow(windowName, img)
+            cv2.imshow(windowName, addInstructionsToImage(img, "Selecting frame [{}/{}]".format(startPoint+trackbarValue, self.length), "Arrow keys prev/next frame", "Enter to confirm", ("Detected between: " + str(autoDetectedFrame-velocity+startPoint) + "-" + str(autoDetectedFrame+startPoint)) if(autoDetectedFrame) else ""))
+            cv2.waitKey(1)
         
-        # len = 1000
-        # startPoint = 10
-        # startpoint = 800
         trackbarStart = 0
         TRACKBAR_LENGTH = 400
-        # if ((self.length - startPoint) > (self.length/2)):
-        #     trackbarStart = 
         cv2.createTrackbar( trackbarName, windowName, trackbarStart, TRACKBAR_LENGTH, onChange )
-        print('Auto-detecting frame...')
+        print('Auto-detecting frame...', end="")
         for i in range(startPoint, startPoint+TRACKBAR_LENGTH, velocity):
             if i >= self.length-2:
                 print("Failed auto detection, proceed manually.")
@@ -298,14 +320,24 @@ class Video:
             success,image = self.vidcap.read()
 
             cv2.setTrackbarPos(trackbarName,windowName,trackbarStart+(i-startPoint))
-            # cv2.imshow(windowName, image)
 
             cfrm = getBrightness(self, self.basicArenaROI, image)
-            # print("Frame {}, brightness: {}".format(i, cfrm))
             if ((sensitivity > 1) and (cfrm > strt*sensitivity)) or ((sensitivity <= 1) and (cfrm <= strt*sensitivity)):
-                # print("Frame {}, brightness: {}".format(i, cfrm))
+                autoDetectedFrame = cv2.getTrackbarPos(trackbarName, windowName)
+
+                # Manually call onChange once to update the frame displayed
+                onChange(cv2.getTrackbarPos(trackbarName, windowName))
                 print("Adjust or press any key to confirm Selection...")
-                cv2.waitKey()
+
+                k = None
+                while not ((k == 32) or (k == 13)):
+                    k = cv2.waitKeyEx()
+                    if (k == 2424832): #left arrow on windows TODO: check on Mac
+                        cv2.setTrackbarPos(trackbarName,windowName,cv2.getTrackbarPos(trackbarName, windowName)-1)
+                    if (k == 2555904): #right arrow on windows
+                        cv2.setTrackbarPos(trackbarName,windowName,cv2.getTrackbarPos(trackbarName, windowName)+1)
+
+                # User has hit space or enter to confirm frame   
                 startFrame = startPoint + cv2.getTrackbarPos(trackbarName,windowName)
                 print('Frame confirmed. {}'.format(startFrame))
                 cv2.destroyWindow(windowName)
@@ -345,6 +377,4 @@ class Video:
         return(target_dir)
 
 if __name__ == '__main__' :
-    # v = Video()
-    # v.savePostProcData()
     print("Run the processing script on GPU cluster:\npython postprocessing.py {}".format(v.path))
