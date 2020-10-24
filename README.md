@@ -16,6 +16,7 @@ Beetle tracker runs in two phases. First a video must be tagged manually by a us
 	 * If not using Anaconda: in terminal install cv2 (`pip install opencv-python`) and numpy (`pip install numpy`)
 You're all set!
 Run the tagging script by making sure you're in the root of the repo and run `python tag/GUI_preprocessing.py` If you see a dialog appear, you're set. Practice tagging a video in `/sample_videos`
+*Note: the tagging section of beetle-tracker uses opencv-python version 4.1.2, while idtrackerai requires version 3.4.5
 
 ### Track
 (From anaconda prompt with an idtrackerai env [install link](https://idtrackerai.readthedocs.io/en/latest/how_to_install.html))
