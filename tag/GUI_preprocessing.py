@@ -18,7 +18,7 @@ class Runner:
 
     def __init__(self):
         root = tk.Tk()
-        root.title("Beetle Tracker")
+        root.title("Beetle Tracker v0.1.2")
         self.currentVideo = Video()
         self.statuses = self.Statuses()
         self.savePath = os.getcwd()
@@ -218,7 +218,7 @@ class Runner:
         else:
             self.startButton["state"] = "disabled"
 
-        self.savePathTxt["text"] = self.savePath
+        self.savePathTxt["text"] = self.savePath + "/" + self.statuses.video
 
     def startFn(self, savePath):
         path = self.currentVideo.savePostProcData(savePath)

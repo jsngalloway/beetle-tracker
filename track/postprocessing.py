@@ -355,7 +355,7 @@ if __name__ == '__main__' :
 
     start_cwd = os.getcwd()
     os.chdir(j.getDirectory())
-    # os.system(j.cmd)
+    os.system(j.cmd)
 
     print("Tracking complete. Beginning analysis...")
     j.postprocess()

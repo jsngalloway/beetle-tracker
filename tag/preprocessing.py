@@ -58,23 +58,23 @@ class Video:
             exit(1)
 
     def getBracketROIWrapper(self):
-        self.bracketROI = self.getBracketROI(self.image, Video.WINDOW_NAME)
+        self.bracketROI = self.getBracketROI(self.image, "Bracket Selection")
         return len(self.bracketROI)
 
     def getArenaROIWrapper(self):
-        (self.basicArenaROI, self.arenaROIstr) = self.getArenaROI2(self.image, "Select Arena...")
+        (self.basicArenaROI, self.arenaROIstr) = self.getArenaROI2(self.image, "Arena Selection")
         return len(self.basicArenaROI)
 
     def getBeetleSelectWrapper(self):
-        self.black = self.beetleSelect(self.image, Video.WINDOW_NAME)
+        self.black = self.beetleSelect(self.image, "Beetle Selection")
         return self.black
 
     def getFirstFrameWrapper(self):
-        self.startFrame = self.getFirstFrame(Video.WINDOW_NAME)
+        self.startFrame = self.getFirstFrame("First Frame Selection")
         return self.startFrame
 
     def getLastFrameWrapper(self):
-        self.videoEndFrame = self.getLastFrame(Video.WINDOW_NAME)
+        self.videoEndFrame = self.getLastFrame("Last Frame Selection")
         return self.videoEndFrame
 
     def finishAndSave(self):
@@ -90,7 +90,7 @@ class Video:
 
     def beetleSelect(self, img, windowName):
         img = addInstructionsToImage(img, "Click near black beetle. Enter to continue")
-        print("Click to select black beetle. Press any key to continue.")
+        print("Click to select black beetle. Press any key to continue...", end="")
         class CoordinateStore:
             def __init__(self, image):
                 self.black = []
@@ -121,13 +121,24 @@ class Video:
         cv2.setMouseCallback(windowName, lambda *args : None)
         retVal = coordStore.getBlack()
         cv2.destroyWindow(windowName)
+        print("done.")
         return retVal
 
-    def getArenaROI2(self, img, windowName):
+    def getArenaROI2(self, img, windowName) -> (tuple, str):
         """
-        Accepts a contour and converts it into a string formatted for idtrackerai
+        Given an image, walks the user through selecting and masking the Beetle arena
+        Parameters:
+            img - the image to display used for masking
+            windowName - the cv2 name of the window
+        Returns:
+            tuple ROI - the basic rectangular ROI of the initial Arena boxing
+            str - the masked contour ROI converted to a string format
         """
-        def contourToString(contour):
+
+        def contourToString(contour): 
+            """
+            Accepts a contour and converts it into a string formatted for idtrackerai
+            """
             point_lst = ["[["]
             first = True
             for point in contour:
@@ -140,11 +151,12 @@ class Video:
             point_lst.append("]]")
             return ''.join(point_lst)
 
-        """
-        Class MaskManager Creates a mask of the same size of the video
-        It's hooked in as a callback and processes mouse clicks to update the mask
-        """
+
         class MaskManager:
+            """
+            Class MaskManager Creates a mask of the same size of the video
+            It's hooked in as a callback and processes mouse clicks to update the mask
+            """
             def __init__(self, img):
                 self.mask = np.zeros(img.shape[:2],np.uint8)
                 self.updated = False
@@ -178,24 +190,22 @@ class Video:
         bgdModel = np.zeros((1,65),np.float64)
         fgdModel = np.zeros((1,65),np.float64)
         
-        print("Selecting general Arena ROI...", end="")
-        rect = [0,0,0,0]
-        while (rect == [0,0,0,0]):
-            rect = cv2.selectROI(windowName, addInstructionsToImage(img, "Drag to select entire Arena. Enter to continue, drag again to reset"))
-        print("done")
+        print("Selecting Arena ROI...", end="")
+        rect = (0,0,0,0)
+        while (rect == (0,0,0,0)):
+            rect = cv2.selectROI(windowName, addInstructionsToImage(img, "Drag to select entire Arena.", "Any key to continue, drag again to reset"))
+        
 
-        cv2.imshow(windowName, addInstructionsToImage(img, "Loading mask..."))
-        cv2.waitKey(2)
-        # cv2.namedWindow(windowName)
-
-        cv2.setMouseCallback(windowName,mm.draw_circle)
+        cv2.imshow(windowName, addInstructionsToImage(img, "Finding arena..."))
+        cv2.waitKey(1)
 
         # Initialize the contours using the rectangle we drew using selectROI
         msk, bgdModel, fgdModel = cv2.grabCut(img,mm.getMask(),rect,bgdModel,fgdModel,3,cv2.GC_INIT_WITH_RECT)
         mm.setMask(msk)
         contours = None
-        while(1):
+        cv2.setMouseCallback(windowName,mm.draw_circle)
 
+        while(1):
             # If mask==2 or mask== 1, mask2 get 0, other wise it gets 1 as 'uint8' type.
             mask2 = np.where((mm.getMask()==2)|(mm.getMask()==0),0,1).astype('uint8')
             img_cut = img*mask2[:,:,np.newaxis]
@@ -218,56 +228,43 @@ class Video:
                 cv2.drawContours(disp_img, contours, largest, (255,0,0), 2)
                 cv2.imshow(windowName, addInstructionsToImage(disp_img, "Left-click = mark Arena", "Right-click = mark background", "Enter to continue"))
 
-                k = cv2.waitKey(10)
+                k = cv2.waitKey(1)
                 if not k == -1:
                     break
 
-                # If the user hits enter without making an update we break
+            # If the user hits enter without making an update we break
             if not mm.getUpdateFlag():
                 break
             else:
                 # The user made an update so we'll re-generate the model
-                cv2.imshow(windowName, addInstructionsToImage(disp_img, "Re-generating model..."))
+                cv2.imshow(windowName, addInstructionsToImage(disp_img, "Re-generating contours..."))
                 cv2.waitKey(1)
                 mm.resetUpdateFlag()
-                print("Regenerating model...", end="")
                 msk, bgdModel, fgdModel = cv2.grabCut(img,mm.getMask(),None,bgdModel,fgdModel,3,cv2.GC_INIT_WITH_MASK)
                 mm.setMask(msk)
-                print("done")
 
         # Remove the callback we assigned earlier
         cv2.setMouseCallback(windowName, lambda *args : None)
 
         cv2.destroyWindow(windowName)
+        print("done.")
         return(rect, contourToString(contours[largest]))
 
-    def getArenaROI(self):
-        print('Select the Beetle Arena....')
-        r = cv2.selectROI(self.image)
-        while (r == (0, 0, 0, 0)):
-            self.time = self.time + 10000
-            self.vidcap.set(cv2.CAP_PROP_POS_MSEC,self.time)
-            success,self.image = self.vidcap.read()
-            if success:
-                print('Select the Beetle Arena...')
-                r = cv2.selectROI(self.image)
-            else:
-                print('Error loading video frame.')
-        #ROI is x,y,w,h
-        a = (r[0], r[1])
-        b = (r[0]+r[2], r[1])
-        c = (r[0]+r[2], r[1]+r[3])
-        d = (r[0], r[1]+r[3])
-
-        ROIstr = "[[{},{},{},{}]]".format(a, b, c, d)
-        print("Arena ROI confirmed.\n")
-        return (r, ROIstr)
-
-    def getBracketROI(self, img, windowName):
-        print('Select the bracket....')
-        bracket = cv2.selectROI("Select the bracket", img)
-        cv2.destroyWindow("Select the bracket")
-        print("Bracket ROI confirmed.\n")
+    def getBracketROI(self, img, windowName) -> tuple:
+        """
+        Prompts the user to select the fungus bracket
+        Parameters:
+            img - the image to display
+            windowName - the name of the window to display it in
+        Returns:
+            tuple bracket - the ROI of the bracket
+        """
+        print("Select the bracket....", end="")
+        bracket = (0,0,0,0)
+        while (bracket == (0,0,0,0)):
+            bracket = cv2.selectROI(windowName, addInstructionsToImage(self.image, "Select the fungus bracket.", "Enter to continue, drag again to reset"))
+        cv2.destroyWindow(windowName)
+        print("done.")
         return bracket
 
     def getFirstFrame(self, windowName):
@@ -298,20 +295,20 @@ class Video:
         if success:
             strt = getBrightness(self, self.basicArenaROI, img)
         else:
-            print("Error autodetecting brightness")
+            print("Error autodetecting brightness.")
 
         autoDetectedFrame: int = None
 
         def onChange(trackbarValue):
             self.vidcap.set(cv2.CAP_PROP_POS_FRAMES,startPoint+trackbarValue)
             success,img = self.vidcap.read()
-            cv2.imshow(windowName, addInstructionsToImage(img, "Selecting frame [{}/{}]".format(startPoint+trackbarValue, self.length), "Arrow keys prev/next frame", "Enter to confirm", ("Detected between: " + str(autoDetectedFrame-velocity+startPoint) + "-" + str(autoDetectedFrame+startPoint)) if(autoDetectedFrame) else ""))
+            cv2.imshow(windowName, addInstructionsToImage(img, "Selecting frame [{}/{}]".format(startPoint+trackbarValue, self.length), "Arrow keys prev/next frame", "Enter to confirm", ("Detected near: " + str(autoDetectedFrame-velocity+startPoint) + "-" + str(autoDetectedFrame+startPoint)) if(autoDetectedFrame) else ""))
             cv2.waitKey(1)
         
         trackbarStart = 0
         TRACKBAR_LENGTH = 400
         cv2.createTrackbar( trackbarName, windowName, trackbarStart, TRACKBAR_LENGTH, onChange )
-        print('Auto-detecting frame...', end="")
+        print('Selecting frame...', end="")
         for i in range(startPoint, startPoint+TRACKBAR_LENGTH, velocity):
             if i >= self.length-2:
                 print("Failed auto detection, proceed manually.")
@@ -374,6 +371,9 @@ class Video:
         #copy the original video file into the new directory
         copyfile(self.path, os.path.join(target_dir, os.path.basename(self.path)))
         print("Successfully generated tracking files for {} at {}".format(video_id, target_dir))
+
+        # Ding ding
+        print('\007')
         return(target_dir)
 
 if __name__ == '__main__' :
