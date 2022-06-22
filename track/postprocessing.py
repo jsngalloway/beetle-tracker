@@ -8,6 +8,7 @@ import random
 import csv
 import string
 import datetime
+from tqdm import tqdm
 from incident import Incident, ProximityIncident, TrialIndicent, StartIncident, BracketIncident
 from InqscribeEvent import InqscribeEvent
 
@@ -33,6 +34,7 @@ class Job:
         self.proximity_range = data['proximity_range']
         self.bracketROI = data['bracketROI']
         self.videoFile = data['video']
+        self.options = data['options']
         data_file.close()
 
     def getDirectory(self):
@@ -154,22 +156,23 @@ class Job:
                     white_avg_vel = white_avg_vel/(len(incident)-1)
                     return white_avg_vel, black_avg_vel
 
-                for i in range(PROXIMITY_FRAME_RANGE, len(proximity)-PROXIMITY_FRAME_RANGE):
+                for i in range(len(proximity)):
                     distance = dist(getBlack(trajectories[i]), getWhite(trajectories[i]))
                     proximity[i] = distance
-                    if (distance < self.proximity_range):
-                        proximity[i] = distance
-                        if not in_prox_last:
-                            white_avg_vel, black_avg_vel = calculateAvgVelInRange(i, trajectories, PROXIMITY_FRAME_RANGE)
-                            this_incident = ProximityIncident(self.frame2videoTime(i), white_avg_vel, black_avg_vel)
-                            incident_list.append(this_incident)
-                            in_prox_last = True
-                    else:
-                        if in_prox_last:
-                            #The interaction just ended
-                            white_avg_vel, black_avg_vel = calculateAvgVelInRange(i, trajectories, PROXIMITY_FRAME_RANGE)
-                            incident_list[-1].endIncident(self.frame2videoTime(i), white_avg_vel, black_avg_vel)
-                        in_prox_last = False
+                    if ((i > PROXIMITY_FRAME_RANGE) and (i < len(proximity) - PROXIMITY_FRAME_RANGE)):
+                        if (distance < self.proximity_range):
+                            if not in_prox_last:
+                                white_avg_vel, black_avg_vel = calculateAvgVelInRange(i, trajectories, PROXIMITY_FRAME_RANGE)
+                                this_incident = ProximityIncident(self.frame2videoTime(i), white_avg_vel, black_avg_vel)
+                                incident_list.append(this_incident)
+                                in_prox_last = True
+                        else:
+                            if in_prox_last:
+                                #The interaction just ended
+                                white_avg_vel, black_avg_vel = calculateAvgVelInRange(i, trajectories, PROXIMITY_FRAME_RANGE)
+                                incident_list[-1].endIncident(self.frame2videoTime(i), white_avg_vel, black_avg_vel)
+                            in_prox_last = False
+
                 return proximity, incident_list
             def find_first_move(trajectories, beetleId):
                 beetle_char = 'b'
@@ -232,6 +235,22 @@ class Job:
             print("Found: [{}] bracket incidents".format(len(bracket_incidents)))
             incidents.extend(bracket_incidents)
             return proximities, incidents
+        def smooth_jumps(trajectories):
+            pass
+            # def running_mean(x, N):
+            #     cumsum = np.cumsum(np.insert(x, 0, 0)) 
+            #     return (cumsum[N:] - cumsum[:-N]) / float(N)
+            
+            # means = [[running_mean(trajectories[:,0,0], 10), running_mean(trajectories[:,0,1], 10)].T, [running_mean(trajectories[:,1,0], 10), running_mean(trajectories[:,1,1], 10)].T]
+            # print(np.array(trajectories) - means)
+            # # N = 10;
+            # # cumsum, moving_aves = [[0, 0, 0, 0]], [[]]
+            # # for i, [[black_x, black_y], [white_x, white_y]] in enumerate(trajectories, 1):
+            # #     cumsum.append( cumsum[i-1] + [black_x, black_y, white_x, white_y])
+            # #     if i >= N:
+            # #         moving_ave = (cumsum[i] - cumsum[i-N])/N
+
+            # return trajectories
 
         def save_inqscribe(filename, events):
             events.insert(0, (InqscribeEvent(self.frame2videoTime(0), 'Note:' + filename, None)))
@@ -243,34 +262,33 @@ class Job:
             f.write("text={}".format(event_str))
             f.close()
     
-        def make_video(trajectories, proximities, inqscribe_events: list, video_name):
+        def make_video(trajectories, proximities, inqscribe_events: list, video_name, draw_paths):
+            trail = []
             vidcap = cv2.VideoCapture(self.videoFile)
             success,image = vidcap.read()
             height, width = image.shape[:2]
             out = cv2.VideoWriter(video_name,cv2.VideoWriter_fourcc('M','J','P','G'), Job.VIDEO_OUTPUT_FPS, (width,height))
             vidcap.set(cv2.CAP_PROP_POS_FRAMES,self.startFrame)
-            # index = 0
-            for index in range(len(trajectories)):
-            # while(self.vidcap.isOpened()):
+            for index, (point, distance) in enumerate(zip(tqdm(trajectories), proximities)):
                 success, frame = vidcap.read()
                 if success:
                     # Bracket Box
                     frame = cv2.rectangle(frame, (self.bracketROI[0]-Job.BRACKET_BUFFER,self.bracketROI[1]-Job.BRACKET_BUFFER), (self.bracketROI[0]+self.bracketROI[2]+Job.BRACKET_BUFFER,self.bracketROI[1]+self.bracketROI[3]+Job.BRACKET_BUFFER), (100, 255, 0), 2)
 
 
-                    frame = cv2.circle(frame, (int(getBlack(trajectories[index])[0]), int(getBlack(trajectories[index])[1])), 2, (0, 0, 0) , 3)
-                    frame = cv2.circle(frame, (int(getWhite(trajectories[index])[0]), int(getWhite(trajectories[index])[1])), 2, (255, 255, 255) , 3)
+                    frame = cv2.circle(frame, (int(getBlack(point)[0]), int(getBlack(point)[1])), 2, (0, 0, 0) , 3)
+                    frame = cv2.circle(frame, (int(getWhite(point)[0]), int(getWhite(point)[1])), 2, (255, 255, 255) , 3)
                     
                     font                   = cv2.FONT_HERSHEY_SIMPLEX
                     bottomLeftCornerOfText = (40,40)
                     fontScale              = 0.66
                     fontColor              = (255,0,0)#BGR
                     lineType               = 2
-                    cv2.putText(frame, "Dist: {}".format(round(proximities[index])), bottomLeftCornerOfText, font, fontScale, fontColor, lineType)
+                    cv2.putText(frame, "Dist: {}".format(round(distance)), bottomLeftCornerOfText, font, fontScale, fontColor, lineType)
 
-                    cv2.putText(frame, "On Bracket: {} {}".format("Black" if inBox(getBlack(trajectories[index]), self.bracketROI, Job.BRACKET_BUFFER) else "","White" if inBox(getWhite(trajectories[index]), self.bracketROI, Job.BRACKET_BUFFER) else ""), (40,70), font, fontScale, fontColor, lineType)
-                    if(proximities[index] < self.proximity_range):
-                        frame = cv2.circle(frame, (int(getBlack(trajectories[index])[0]), int(getBlack(trajectories[index])[1])), self.proximity_range, (0, 0, 255) , 2)
+                    cv2.putText(frame, "On Bracket: {} {}".format("Black" if inBox(getBlack(point), self.bracketROI, Job.BRACKET_BUFFER) else "","White" if inBox(getWhite(point), self.bracketROI, Job.BRACKET_BUFFER) else ""), (40,70), font, fontScale, fontColor, lineType)
+                    if(distance < self.proximity_range):
+                        frame = cv2.circle(frame, (int(getBlack(point)[0]), int(getBlack(point)[1])), self.proximity_range, (0, 0, 255) , 2)
                     # add annotations to frame
                     
                     cv2.putText(frame, "{}".format(str(self.frame2videoTime(index)).split('.', 2)[0]), (40,100), font, fontScale, fontColor, lineType)
@@ -283,14 +301,21 @@ class Job:
                     if len(inqscribe_events) > 2:
                         cv2.putText(frame, "     {}".format(inqscribe_events[2]), (40,190), font, fontScale, fontColor, lineType)
 
+                    # Draw the beetle paths, if requested
+                    if draw_paths:
+                        black_loc = getBlack(point)
+                        black_tuple = (round(black_loc[0]), round(black_loc[1]))
+                        white_loc = getWhite(point)
+                        white_tuple = (round(white_loc[0]), round(white_loc[1]))
+                        trail.append([black_tuple, white_tuple])
+                        for i, trail_point in enumerate(trail):
+                            if(i > 0):
+                                frame = cv2.line(frame, trail[i-1][0], trail_point[0], color=(0, 0, 0), thickness=2)
+                                frame = cv2.line(frame, trail[i-1][1], trail_point[1], color=(255, 255, 255), thickness=2)
 
                     out.write(frame)
-
-                    # Display the resulting frame    
-                    # cv2.imshow('frame',frame)
                 else:
                     break
-                # index += 1
 
             # When everything done, release the video capture and video write objects
             vidcap.release()
@@ -323,6 +348,7 @@ class Job:
         trajectories = all_trajectories[self.startFrame:self.videoEndFrame-1]
         print('---------- INTERPOLATION ----------')
         trajectories = verify_and_swap_black_white(interpolate(trajectories))
+        # trajectories = smooth_jumps(trajectories)
 
         print('---------- INCIDENT ANALYSIS ----------')
         proximities, incidents = find_all_incidents(trajectories)
@@ -346,7 +372,7 @@ class Job:
         # for event in inqscribe_events:
         #     print(event)    
 
-        make_video(trajectories, proximities, inqscribe_events, "post_proc_output.avi")
+        make_video(trajectories, proximities, inqscribe_events, "post_proc_output.avi", self.options["visualize_paths"])
         print('Annotated video saved to {}'.format("post_proc_output.avi"))
         
 
@@ -355,9 +381,13 @@ if __name__ == '__main__' :
 
     start_cwd = os.getcwd()
     os.chdir(j.getDirectory())
-    os.system(j.cmd)
+    
+    if j.options["do_tracking"]:
+        os.system(j.cmd)
+        print("Tracking complete.")
 
-    print("Tracking complete. Beginning analysis...")
-    j.postprocess()
+    if j.options["do_postprocessing"]:
+        j.postprocess()
+        print("Postprocessing complete.")
 
     os.chdir(start_cwd)

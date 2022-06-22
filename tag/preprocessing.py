@@ -85,7 +85,7 @@ class Video:
         self.savePostProcData()
 
     def getTrackingCommand(self):
-            cmd = "idtrackerai terminal_mode --_video \"{}\" --_session {} --_intensity [0,162] --_area [150,60000] --_range [{},{}] --_nblobs 2 --_roi \"{}\" --exec track_video".format(self.videoFile, Video.SESSION_NAME, self.startFrame, self.videoEndFrame, self.arenaROIstr)
+            cmd = "idtrackerai terminal_mode --_video \"{}\" --_session {} --_intensity [0,162] --_area [150,60000] --_range [{},{}] --_number_of_animals 2 --_roi \"{}\" --exec track_video".format(self.videoFile, Video.SESSION_NAME, self.startFrame, self.videoEndFrame, self.arenaROIstr)
             return cmd
 
     def beetleSelect(self, img, windowName):
@@ -212,7 +212,16 @@ class Video:
 
             imgray = cv2.cvtColor(img_cut, cv2.COLOR_BGR2GRAY)
             _, thresh = cv2.threshold(imgray, 127, 255, 0)
-            contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            
+            contours = None
+            find_contours_result = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            if len(find_contours_result) == 2:
+                contours = find_contours_result[0]
+            elif len(find_contours_result) == 3:
+                contours = find_contours_result[1]
+            else:
+                print("Unexpected findContour size!")
+
             largest = 0
             for i in range(len(contours)):
                 if cv2.contourArea(contours[i]) > cv2.contourArea(contours[largest]):
@@ -327,11 +336,11 @@ class Video:
                 print("Adjust or press any key to confirm Selection...")
 
                 k = None
-                while not ((k == 32) or (k == 13)):
+                while not ((k == 32) or (k == 13) or (k == 36) or (k == 76)):
                     k = cv2.waitKeyEx()
-                    if (k == 2424832): #left arrow on windows TODO: check on Mac
+                    if (k == 2424832 or k == ord('a')): #left arrow on windows TODO: check on Mac
                         cv2.setTrackbarPos(trackbarName,windowName,cv2.getTrackbarPos(trackbarName, windowName)-1)
-                    if (k == 2555904): #right arrow on windows
+                    if (k == 2555904 or k == ord('d')): #right arrow on windows
                         cv2.setTrackbarPos(trackbarName,windowName,cv2.getTrackbarPos(trackbarName, windowName)+1)
 
                 # User has hit space or enter to confirm frame   
@@ -341,6 +350,12 @@ class Video:
                 return startFrame
 
     def savePostProcData(self, target_area):
+
+        options = {
+            "visualize_paths": False,
+            "do_tracking": True,
+            "do_postprocessing": True
+        }
 
         video_id = os.path.splitext(os.path.basename(self.path))[0]
         target_dir = os.path.join(target_area, video_id)
@@ -354,7 +369,7 @@ class Video:
 
         f = open(os.path.join(target_dir, (video_id + ".json")),"w+")
         class JsonOut:
-            def __init__(self, cmd, location_black, startFrame, videoEndFrame, proximity_range, bracketROI, videoFile):
+            def __init__(self, cmd, location_black, startFrame, videoEndFrame, proximity_range, bracketROI, videoFile, options):
                 self.cmd = cmd
                 self.location_black = location_black
                 self.startFrame = startFrame
@@ -362,8 +377,9 @@ class Video:
                 self.proximity_range = proximity_range
                 self.bracketROI = bracketROI
                 self.video = videoFile
+                self.options = options
 
-        jOut = JsonOut(cmd = self.getTrackingCommand(), location_black=self.black, startFrame=self.startFrame, videoEndFrame=self.videoEndFrame, proximity_range=self.proximity_range, bracketROI=self.bracketROI, videoFile=self.videoFile)
+        jOut = JsonOut(cmd = self.getTrackingCommand(), location_black=self.black, startFrame=self.startFrame, videoEndFrame=self.videoEndFrame, proximity_range=self.proximity_range, bracketROI=self.bracketROI, videoFile=self.videoFile, options=options)
         jsonStr = json.dumps(jOut, indent=4, default=lambda o: o.__dict__)
         f.write(jsonStr)
         f.close()

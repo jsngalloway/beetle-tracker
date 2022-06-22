@@ -16,7 +16,7 @@ class VideoPlayer:
         self.original_image = original_image
 
     def jumpToFrame(self):
-        print("JUMPPPPPPPPPPPPPPPPPPPPPPPPPPPPPppp")
+        print("Jump")
         self.vid.set(cv2.CAP_PROP_POS_FRAMES, 2000)
 
 

@@ -16,6 +16,15 @@ class Runner:
             self.start = None
             self.end = None
 
+    def updateStartEnds(self, *args):
+        self.statuses.start = self.startFrameVar.get()
+        self.statuses.end = self.endFrameVar.get()
+        try:
+            self.currentVideo.startFrame = int(self.statuses.start)
+            self.currentVideo.videoEndFrame = int(self.statuses.end)
+        except:
+            print("Failure to interpret frame range")
+
     def __init__(self):
         root = tk.Tk()
         root.title("Beetle Tracker v0.1.2")
@@ -40,13 +49,18 @@ class Runner:
         beetleTxt = tk.Label(text="Black beetle: ", pady=8)
         self.beetleStatus = tk.Label(text="None", fg="Red")
 
+        self.startFrameVar = tk.StringVar("")
+        self.endFrameVar = tk.StringVar("")
+        self.startFrameVar.trace('w', self.updateStartEnds)
+        self.endFrameVar.trace('w', self.updateStartEnds)
+
         self.selectStartBtn = tk.Button(text="Set Start", state="disabled", command=self.getFirstFrameWrapperFn)
         startTxt = tk.Label(text="Start Frame: ", pady=8)
-        self.startStatus = tk.Label(text="None", fg="Red")
+        self.startStatus = tk.Entry(text="None", fg="Red", width=4, textvariable=self.startFrameVar)
 
         self.selectEndBtn = tk.Button(text="Set End", state="disabled", command=self.getLastFrameWrapperFn)
         endTxt = tk.Label(text="End Frame: ", pady=8)
-        self.endStatus = tk.Label(text="None", fg="Red")
+        self.endStatus = tk.Entry(text="None", fg="Red", width=4, textvariable=self.endFrameVar)
         
         instructions = tk.Label(text="Select a video file to start")
 
@@ -108,6 +122,7 @@ class Runner:
         res = self.currentVideo.getFirstFrameWrapper()
         if res:
             self.statuses.start = str(res)
+            self.startFrameVar.set(str(res))
         else:
             self.statuses.start = None
         self.updateStatuses()
@@ -116,6 +131,7 @@ class Runner:
         res = self.currentVideo.getLastFrameWrapper()
         if res:
             self.statuses.end = str(res)
+            self.endFrameVar.set(str(res))
         else:
             self.statuses.end = None
         self.updateStatuses()
@@ -187,19 +203,19 @@ class Runner:
 
         if(self.statuses.start):
             self.startStatus["fg"] = "green"
-            self.startStatus["text"] = self.statuses.start
+            self.startFrameVar.set(str(self.statuses.start))
             self.selectBeetleBtn["state"] = "normal"
         else:
             self.startStatus["fg"] = "red"
-            self.startStatus["text"] = "None"
+            self.startFrameVar.set("0")
             self.selectBeetleBtn["state"] = "disabled"
 
         if(self.statuses.end):
             self.endStatus["fg"] = "green"
-            self.endStatus["text"] = self.statuses.end
+            self.endFrameVar.set(str(self.statuses.end))
         else:
             self.endStatus["fg"] = "red"
-            self.endStatus["text"] = "None"
+            self.endFrameVar.set("0")
 
         if(self.statuses.beetle):
             self.beetleStatus["fg"] = "green"
