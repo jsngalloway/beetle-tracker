@@ -1,0 +1,4 @@
+idtrackerai
+torch
+torchvision
+tqdm
