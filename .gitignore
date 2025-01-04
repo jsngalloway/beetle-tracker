@@ -6,3 +6,7 @@ video1/*
 video2/*
 */__pycache__/*
 out-parameters.txt
+venv/
+session_*
+track_sample/*
+tag_sample/*

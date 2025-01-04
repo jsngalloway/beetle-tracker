@@ -1,44 +1,73 @@
 
 # Beetle Tracker
+
 Beetle Tracker is a small lightweight pair of scripts used to *tag* beetle videos and then *track* them using [idtrackerai](https://idtrackerai.readthedocs.io/en/latest/). Analysis is completed after tracking and various files are generated
 
 ## Usage
-Beetle tracker runs in two phases. First a video must be tagged manually by a user. This generates a file which is used in the track phase (usually on a high powered GPU machine) to track the beetles through the video.
-### Tag
-#### Install
-1. Anaconda is recommended for running beetle-tracker, [download it here](https://www.anaconda.com/)
-2. Clone OR Download this repo
-  a. If OSX open a terminal, or Windows open Git Bash, navigate to a folder where you'd like to install and run `git clone https://github.com/jsngalloway/beetle-tracker.git`
-  b.  At the [github page](https://github.com/jsngalloway/beetle-tracker) Click the green code button and `download zip` Unzip where you want
- 2. Open the folder beetle-tracker, this will be referred to as the *root* of this repo.
- 3. Install the requirements
-	 * If using Anaconda: open "Anaconda Prompt" and run `conda install -c conda-forge opencv`
-	 * If not using Anaconda: in terminal install cv2 (`pip install opencv-python`) and numpy (`pip install numpy`)
 
-You're all set!
-Run the tagging script by making sure you're in the root of the repo and run `python tag/GUI_preprocessing.py` If you see a dialog appear, you're set. Practice tagging a video in `/sample_videos`
+Beetle tracker runs in two phases. First a video must be tagged manually by a user. This generates a file which is used in the track phase. The tag phase can be run on virtually any machine, but the track phase should be run on a machine with a CUDA runtime.
 
-*Note: the tagging section of beetle-tracker uses opencv-python version 4.1.2, while idtrackerai requires version 3.4.5
+### Tagging
 
-### Track
-(From anaconda prompt with an idtrackerai env [install link](https://idtrackerai.readthedocs.io/en/latest/how_to_install.html))
-1. Install using the above steps
-2. Tag a video, or use the sample provided in `/track_sample`
-3. Run `python track/postprocessing.py path/to/the/file.json` (note that the generated .json file must be next to the video)
-This portion requires no user input but can take several (~10) minutes depending on your configuration.
+1. Open the ui with `python tag/GUI_preprocessing.py`
+2. Click on the buttons until each requirement is complete. Follow onscreen directions or hints in the console
+3. If tracking on a different computer than tagging on, move the video and generated `.json` file to the tracking machine
 
-## Requirements
-This is a python3 project. While it was developed in an Anaconda env all necessary libraries are listed below.
-### Tagging Requirements
-* cv2
-* numpy
-### Tracking Requirements
-* cv2
-* numpy
-* idtrackerai
-Note: idtrackerai can be difficult to install properly. Even if installed be sure the utility is properly utilizing all GPU resources
+### Tracking
 
-## Upcoming Features
-* Batch Tagging
-* Batch Processing
-* Suggestions? Let me know
+1. Run the tracker tool `python track/postprocessing.py <filename.json>`
+
+## Install
+
+prereq: python 3 installed (Tested with 3.10)
+
+```bash
+$ python --version
+Python 3.10.12
+```
+
+### Set up the tagging machine
+
+```bash
+git clone git@github.com:jsngalloway/beetle-tracker.git
+cd beetle-tracker/tag
+
+# Create and activate a python virtual environment for tagging
+python3 -m venv ./venv
+source ./venv/bin/activate
+pip install -r requirements.txt
+
+# Test your installation
+python GUI_preprocessing.py
+
+# End your session
+deactivate
+```
+
+The beetle tracker tagging UI looks like this:
+
+![The beetle tracker UI](docs/ui.png)
+
+### Set up the tracking machine
+
+Before installation ensure the CUDA runtime is configured. ([nvidia docs](https://docs.nvidia.com/cuda/)) Verify installation with `nvidia-smi` it should output something like:
+
+```
+Wed Jan  1 08:46:51 2025
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 560.35.05              Driver Version: 560.35.05      CUDA Version: 12.6     |
+|-----------------------------------------+------------------------+----------------------+
+...
+```
+
+Install the requirements for beetle tracking:
+
+```bash
+git clone git@github.com:jsngalloway/beetle-tracker.git
+cd beetle-tracker/track
+
+# Create and activate a python virtual environment for tracking
+python3 -m venv ./venv
+source ./venv/bin/activate
+pip install -r requirements.txt
+```
