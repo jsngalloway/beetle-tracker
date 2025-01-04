@@ -6,6 +6,7 @@ import cv2
 import random
 from shutil import copyfile
 import logging
+import shutil
 
 
 def addInstructionsToImage(img, *args):
@@ -99,7 +100,17 @@ class Video:
         self.savePostProcData()
 
     def getTrackingCommand(self):
-        return f'idtrackerai --track --video_paths "{self.videoFile}" --intensity_ths 0 162 --area_ths 150 60000 --tracking_intervals [{self.startFrame},{self.videoEndFrame}] --number_of_animals 2 --roi_list "{self.arenaROIstr}"'
+        return (
+            f"idtrackerai --track "
+            f'--video_paths "{self.videoFile}" '
+            f"--intensity_ths 25 255 "
+            f"--area_ths 100 60000 "
+            f"--tracking_intervals [{self.startFrame},{self.videoEndFrame}] "
+            f"--number_of_animals 2 "
+            f"--use_bkg true "
+            f"--background_subtraction_stat max "
+            f'--roi_list "{self.arenaROIstr}"'
+        )
 
     def beetleSelect(self, img, windowName):
         img = addInstructionsToImage(img, "Click near black beetle. Enter to continue")
@@ -448,7 +459,7 @@ class Video:
     def savePostProcData(self, target_area):
 
         options = {
-            "visualize_paths": False,
+            "visualize_paths": True,
             "do_tracking": True,
             "do_postprocessing": True,
         }
@@ -458,8 +469,11 @@ class Video:
 
         try:
             os.mkdir(target_dir)
-        except OSError:
-            self.logger.info("Creation of the directory %s failed, maybe it already exists..." % target_dir)
+        except OSError as e:
+            self.logger.warning(f"Creation of the directory failed: {e}")
+            self.logger.warning("Deleting directory and recreating it.")
+            shutil.rmtree(target_dir)
+            os.mkdir(target_dir)
         else:
             self.logger.info("Successfully created %s folder" % target_dir)
 

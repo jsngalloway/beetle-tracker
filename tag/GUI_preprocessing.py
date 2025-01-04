@@ -269,7 +269,10 @@ class Runner:
     def startFn(self, savePath):
         path = self.currentVideo.savePostProcData(savePath)
         logger.info("Directory generated at {}".format(path))
-        os.startfile(path)
+
+        # Attempt to open in explorer if we're using windows
+        if hasattr(os, "startfile"):
+            os.startfile(path)
 
 
 if __name__ == "__main__":
