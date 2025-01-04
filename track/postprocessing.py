@@ -98,23 +98,16 @@ class Job:
 
                                 if newGood == lastGood:
                                     for cr in range(lastGood, endFrame):
-                                        trajectories[cr][id][axis] = trajectories[
-                                            lastGood
-                                        ][id][axis]
+                                        trajectories[cr][id][axis] = trajectories[lastGood][id][axis]
                                         interp += 1
                                 else:
-                                    step = (
-                                        trajectories[newGood][id][axis]
-                                        - trajectories[lastGood][id][axis]
-                                    ) / (endFrame - lastGood)
+                                    step = (trajectories[newGood][id][axis] - trajectories[lastGood][id][axis]) / (
+                                        endFrame - lastGood
+                                    )
                                     for cr in range(lastGood, endFrame):
-                                        trajectories[cr][id][axis] = (
-                                            trajectories[cr - 1][id][axis] + step
-                                        )
+                                        trajectories[cr][id][axis] = trajectories[cr - 1][id][axis] + step
                                         interp += 1
-                logger.info(
-                    "Linear Interpolation finished. Filled ({}) values".format(interp)
-                )
+                logger.info("Linear Interpolation finished. Filled ({}) values".format(interp))
                 logger.info(
                     "\t{}/{} values linearly interpolated, {}%".format(
                         interp,
@@ -191,33 +184,23 @@ class Job:
 
                 def calculateAvgVelInRange(i, trajectories, frame_range):
                     avg_pos = [
-                        (getBlack(trajectories[i])[0] + getWhite(trajectories[i])[0])
-                        / 2,
-                        (getBlack(trajectories[i])[1] + getWhite(trajectories[i])[1])
-                        / 2,
+                        (getBlack(trajectories[i])[0] + getWhite(trajectories[i])[0]) / 2,
+                        (getBlack(trajectories[i])[1] + getWhite(trajectories[i])[1]) / 2,
                     ]
                     incident = trajectories[i - frame_range : i + frame_range]
                     black_avg_vel = 0
                     white_avg_vel = 0
                     for j in range(1, len(incident)):
-                        black_avg_vel += dist(
-                            getBlack(incident[j - 1]), avg_pos
-                        ) - dist(getBlack(incident[j]), avg_pos)
-                        white_avg_vel += dist(
-                            getWhite(incident[j - 1]), avg_pos
-                        ) - dist(getWhite(incident[j]), avg_pos)
+                        black_avg_vel += dist(getBlack(incident[j - 1]), avg_pos) - dist(getBlack(incident[j]), avg_pos)
+                        white_avg_vel += dist(getWhite(incident[j - 1]), avg_pos) - dist(getWhite(incident[j]), avg_pos)
                     black_avg_vel = black_avg_vel / (len(incident) - 1)
                     white_avg_vel = white_avg_vel / (len(incident) - 1)
                     return white_avg_vel, black_avg_vel
 
                 for i in range(len(proximity)):
-                    distance = dist(
-                        getBlack(trajectories[i]), getWhite(trajectories[i])
-                    )
+                    distance = dist(getBlack(trajectories[i]), getWhite(trajectories[i]))
                     proximity[i] = distance
-                    if (i > PROXIMITY_FRAME_RANGE) and (
-                        i < len(proximity) - PROXIMITY_FRAME_RANGE
-                    ):
+                    if (i > PROXIMITY_FRAME_RANGE) and (i < len(proximity) - PROXIMITY_FRAME_RANGE):
                         if distance < self.proximity_range:
                             if not in_prox_last:
                                 white_avg_vel, black_avg_vel = calculateAvgVelInRange(
@@ -255,9 +238,7 @@ class Job:
                 # Find the first frame where the beetle's position is not a nan
                 start_frame = None
                 for idx, frame in enumerate(trajectories):
-                    if not np.isnan(frame[beetleId][0]) and not np.isnan(
-                        frame[beetleId][1]
-                    ):
+                    if not np.isnan(frame[beetleId][0]) and not np.isnan(frame[beetleId][1]):
                         logger.debug(
                             f"Found first non-nan position for beetle '{beetle_char}' "
                             f"at index {idx}/{len(trajectories)}"
@@ -282,13 +263,9 @@ class Job:
                         logger.debug(
                             f"Beetle '{beetle_char}' moved far enough to register as a mover at frame ({frame_count})"
                         )
-                        return StartIncident(
-                            self.frame2videoTime(frame_count), beetle_char
-                        )
+                        return StartIncident(self.frame2videoTime(frame_count), beetle_char)
                     frame_count += 1
-                logger.info(
-                    f"WARNING! No first mover incident found for beetle: {beetleId}. Did this beetle move?"
-                )
+                logger.info(f"WARNING! No first mover incident found for beetle: {beetleId}. Did this beetle move?")
 
             def get_bracket_incidents(trajectories, beetleId):
                 # create a history buffer (fill it with 0, 1 means on bracket)
@@ -302,26 +279,18 @@ class Job:
                 frame_count = 0
                 current_event = None
                 for frame in trajectories:
-                    on_bracket = inBox(
-                        frame[beetleId], self.bracketROI, Job.BRACKET_BUFFER
-                    )
+                    on_bracket = inBox(frame[beetleId], self.bracketROI, Job.BRACKET_BUFFER)
                     # logger.info(history)
-                    if (
-                        history.pop()
-                    ):  # remove the oldest element in the list, effectively a queue
+                    if history.pop():  # remove the oldest element in the list, effectively a queue
                         if True not in history:
                             if current_event:
-                                current_event.endIncident(
-                                    self.frame2videoTime(frame_count)
-                                )
+                                current_event.endIncident(self.frame2videoTime(frame_count))
                                 events.append(current_event)
                                 current_event = None
                             else:
                                 logger.info("we got an issue here bud")
                     if on_bracket and (current_event is None):
-                        current_event = BracketIncident(
-                            self.frame2videoTime(frame_count), beetleChar
-                        )
+                        current_event = BracketIncident(self.frame2videoTime(frame_count), beetleChar)
                     history.insert(
                         0, on_bracket
                     )  # insert whether the beetle was on the bracket at the beginning of the list
@@ -330,27 +299,17 @@ class Job:
 
             proximity_incidents = []
             proximities, proximity_incidents = proximity_detection(trajectories)
-            logger.info(
-                "Found: [{}] proximity incidents".format(len(proximity_incidents))
-            )
+            logger.info("Found: [{}] proximity incidents".format(len(proximity_incidents)))
             incidents.extend(proximity_incidents)
 
-            trial_incidents = TrialIncident(
-                self.frame2videoTime(0), self.frame2videoTime(len(trajectories))
-            )
+            trial_incidents = TrialIncident(self.frame2videoTime(0), self.frame2videoTime(len(trajectories)))
             logger.info("Found: [1] trial incidents")
             incidents.append(trial_incidents)
 
             first_move_incidents = []
-            first_move_incidents.append(
-                find_first_move(trajectories, 0)
-            )  # beetle 0 is black
-            first_move_incidents.append(
-                find_first_move(trajectories, 1)
-            )  # beetle 1 is white
-            logger.info(
-                "Found: [{}] first-move incidents".format(len(first_move_incidents))
-            )
+            first_move_incidents.append(find_first_move(trajectories, 0))  # beetle 0 is black
+            first_move_incidents.append(find_first_move(trajectories, 1))  # beetle 1 is white
+            logger.info("Found: [{}] first-move incidents".format(len(first_move_incidents)))
             incidents.extend(first_move_incidents)
 
             bracket_incidents = []
@@ -380,9 +339,7 @@ class Job:
         def save_inqscribe(filename, events):
             current_directory = os.getcwd()
             logger.info(current_directory)
-            events.insert(
-                0, (InqscribeEvent(self.frame2videoTime(0), "Note:" + filename, None))
-            )
+            events.insert(0, (InqscribeEvent(self.frame2videoTime(0), "Note:" + filename, None)))
             f = open(filename + ".inqscr", mode="w")
             f.write("app=InqScribe\n")
             event_str = ""
@@ -391,9 +348,7 @@ class Job:
             f.write("text={}".format(event_str))
             f.close()
 
-        def make_video(
-            trajectories, proximities, inqscribe_events: list, video_name, draw_paths
-        ):
+        def make_video(trajectories, proximities, inqscribe_events: list, video_name, draw_paths):
             trail = []
             vidcap = cv2.VideoCapture(self.videoFile)
             success, image = vidcap.read()
@@ -405,9 +360,7 @@ class Job:
                 (width, height),
             )
             vidcap.set(cv2.CAP_PROP_POS_FRAMES, self.startFrame)
-            for index, (point, distance) in enumerate(
-                zip(tqdm(trajectories), proximities)
-            ):
+            for index, (point, distance) in enumerate(zip(tqdm(trajectories), proximities)):
                 success, frame = vidcap.read()
                 if success:
                     # Bracket Box
@@ -418,21 +371,15 @@ class Job:
                             self.bracketROI[1] - Job.BRACKET_BUFFER,
                         ),
                         (
-                            self.bracketROI[0]
-                            + self.bracketROI[2]
-                            + Job.BRACKET_BUFFER,
-                            self.bracketROI[1]
-                            + self.bracketROI[3]
-                            + Job.BRACKET_BUFFER,
+                            self.bracketROI[0] + self.bracketROI[2] + Job.BRACKET_BUFFER,
+                            self.bracketROI[1] + self.bracketROI[3] + Job.BRACKET_BUFFER,
                         ),
                         (100, 255, 0),
                         2,
                     )
 
                     # Annotate the video if the point is non-nan
-                    if not np.isnan(getBlack(point)[0]) and not np.isnan(
-                        getBlack(point)[1]
-                    ):
+                    if not np.isnan(getBlack(point)[0]) and not np.isnan(getBlack(point)[1]):
                         frame = cv2.circle(
                             frame,
                             (int(getBlack(point)[0]), int(getBlack(point)[1])),
@@ -440,9 +387,7 @@ class Job:
                             (0, 0, 0),
                             3,
                         )
-                    if not np.isnan(getWhite(point)[0]) and not np.isnan(
-                        getWhite(point)[1]
-                    ):
+                    if not np.isnan(getWhite(point)[0]) and not np.isnan(getWhite(point)[1]):
                         frame = cv2.circle(
                             frame,
                             (int(getWhite(point)[0]), int(getWhite(point)[1])),
@@ -456,9 +401,7 @@ class Job:
                     fontScale = 0.75
                     fontColor = (255, 0, 0)  # BGR
                     thickness = 1
-                    distance_str = (
-                        f"{distance:.0f}" if not math.isnan(distance) else "nan"
-                    )
+                    distance_str = f"{distance:.0f}" if not math.isnan(distance) else "nan"
                     cv2.putText(
                         frame,
                         f"Dist: {distance_str}",
@@ -473,20 +416,8 @@ class Job:
                     cv2.putText(
                         frame,
                         "On Bracket: {} {}".format(
-                            (
-                                "Black"
-                                if inBox(
-                                    getBlack(point), self.bracketROI, Job.BRACKET_BUFFER
-                                )
-                                else ""
-                            ),
-                            (
-                                "White"
-                                if inBox(
-                                    getWhite(point), self.bracketROI, Job.BRACKET_BUFFER
-                                )
-                                else ""
-                            ),
+                            ("Black" if inBox(getBlack(point), self.bracketROI, Job.BRACKET_BUFFER) else ""),
+                            ("White" if inBox(getWhite(point), self.bracketROI, Job.BRACKET_BUFFER) else ""),
                         ),
                         (40, 70),
                         font,
@@ -537,10 +468,7 @@ class Job:
                             thickness,
                             cv2.LINE_AA,
                         )
-                        if (
-                            self.frame2videoTime(index + 16)
-                            >= (inqscribe_events[1]).getTime()
-                        ):
+                        if self.frame2videoTime(index + 16) >= (inqscribe_events[1]).getTime():
                             inqscribe_events.pop(0)
                     if len(inqscribe_events) > 2:
                         cv2.putText(
@@ -564,9 +492,7 @@ class Job:
                     def draw_line(frame, start, end, color, thickness):
                         """Draws a line if both start and end points are valid."""
                         if start != (-1, -1) and end != (-1, -1):
-                            return cv2.line(
-                                frame, start, end, color=color, thickness=thickness
-                            )
+                            return cv2.line(frame, start, end, color=color, thickness=thickness)
                         return frame
 
                     if draw_paths:
@@ -649,13 +575,9 @@ class Job:
 
         # Load in trajectories 'without gaps'
         self.trajectories_wo_gaps_path = (
-            Path(f"session_{j.videoFile.split('.')[0]}")
-            / "trajectories"
-            / "without_gaps.npy"
+            Path(f"session_{j.videoFile.split('.')[0]}") / "trajectories" / "without_gaps.npy"
         )
-        trajectories_dict: dict = np.load(
-            self.trajectories_wo_gaps_path, allow_pickle=True
-        ).item()
+        trajectories_dict: dict = np.load(self.trajectories_wo_gaps_path, allow_pickle=True).item()
 
         all_trajectories: list = trajectories_dict["trajectories"]
         logger.info(f"Trajectorys loaded len: ({len(all_trajectories)}). first index:")

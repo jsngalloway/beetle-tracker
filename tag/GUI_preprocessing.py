@@ -54,9 +54,7 @@ class Runner:
         bracketTxt = tk.Label(text="Bracket: ", pady=8)
         self.bracketStatus = tk.Label(text="None", fg="Red")
 
-        self.selectArenaBtn = tk.Button(
-            text="Select Arena", state="disabled", command=self.selectArenaBtnFn
-        )
+        self.selectArenaBtn = tk.Button(text="Select Arena", state="disabled", command=self.selectArenaBtnFn)
         arenaTxt = tk.Label(text="Arena: ", pady=8)
         self.arenaStatus = tk.Label(text="None", fg="Red")
 
@@ -73,15 +71,11 @@ class Runner:
         self.startFrameVar.trace_add("write", self.updateStartEnds)
         self.endFrameVar.trace_add("write", self.updateStartEnds)
 
-        self.selectStartBtn = tk.Button(
-            text="Set Start", state="disabled", command=self.getFirstFrameWrapperFn
-        )
+        self.selectStartBtn = tk.Button(text="Set Start", state="disabled", command=self.getFirstFrameWrapperFn)
         startTxt = tk.Label(text="Start Frame: ", pady=8)
         self.startStatus = tk.Entry(bg="Red", width=4, textvariable=self.startFrameVar)
 
-        self.selectEndBtn = tk.Button(
-            text="Set End", state="disabled", command=self.getLastFrameWrapperFn
-        )
+        self.selectEndBtn = tk.Button(text="Set End", state="disabled", command=self.getLastFrameWrapperFn)
         endTxt = tk.Label(text="End Frame: ", pady=8)
         self.endStatus = tk.Entry(bg="Red", width=4, textvariable=self.endFrameVar)
 
@@ -174,9 +168,7 @@ class Runner:
         self.updateStatuses()
 
     def changeSavePathFn(self):
-        dirname = tk.filedialog.askdirectory(
-            initialdir="../", title="Select a directory"
-        )
+        dirname = tk.filedialog.askdirectory(initialdir="../", title="Select a directory")
         self.savePath = dirname
         self.updateStatuses()
 

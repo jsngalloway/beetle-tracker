@@ -25,9 +25,7 @@ class VideoPlayer:
         # I have no idea why we need original image
         print("Frame: {}".format(self.original_image))
         ret, frame = self.vid.read()
-        image = ImageTk.PhotoImage(
-            Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-        )
+        image = ImageTk.PhotoImage(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
         self.canvas.itemconfig(1, image=image)
         self.original_image = image
         self.canvas.after(50, self.nextFrame)

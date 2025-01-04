@@ -43,15 +43,11 @@ class BracketIncident(Incident):
         self.beetleChar = beetleChar
         self.start_time = start_time
         self.inqscribe_events = []
-        self.inqscribe_events.append(
-            InqscribeEvent(start_time, self.beetleChar, "fu." + "s")
-        )
+        self.inqscribe_events.append(InqscribeEvent(start_time, self.beetleChar, "fu." + "s"))
 
     def endIncident(self, end_time):
         self.end_time = end_time
-        self.inqscribe_events.append(
-            InqscribeEvent(end_time, self.beetleChar, "fu." + "e")
-        )
+        self.inqscribe_events.append(InqscribeEvent(end_time, self.beetleChar, "fu." + "e"))
 
     def prettyPrint(self):
         print("Type: {}".format(type(self).__name__))
@@ -86,9 +82,7 @@ class ProximityIncident(Incident):
             self.initiator_confidence = white_avg_vel_in - black_avg_vel_in
         self.deinitiator = None
         self.deinitiator_confidence = None
-        self.inqscribe_events.append(
-            InqscribeEvent(start_time, self.initiator[:1].lower(), "prox")
-        )
+        self.inqscribe_events.append(InqscribeEvent(start_time, self.initiator[:1].lower(), "prox"))
 
     def endIncident(self, end_time, white_avg_vel_out, black_avg_vel_out):
         self.end_time = end_time
@@ -99,9 +93,7 @@ class ProximityIncident(Incident):
             self.deinitiator = "White"
             self.deinitiator_confidence = black_avg_vel_out - white_avg_vel_out
         self.duration = self.end_time - self.start_time
-        self.inqscribe_events.append(
-            InqscribeEvent(end_time, self.deinitiator[:1].lower(), "ends")
-        )
+        self.inqscribe_events.append(InqscribeEvent(end_time, self.deinitiator[:1].lower(), "ends"))
 
     def prettyPrint(self):
         print("Type: {}".format(type(self).__name__))
