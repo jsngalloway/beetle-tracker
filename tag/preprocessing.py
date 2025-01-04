@@ -1,16 +1,11 @@
 import os
-import sys
-from typing import Tuple
+from typing import Optional, Tuple
 import numpy as np
 import json
-import math
 import cv2
 import random
 from shutil import copyfile
-import json
-import tkinter as tk
-from tkinter import filedialog
-from PIL import ImageTk, Image
+import logging
 
 
 def addInstructionsToImage(img, *args):
@@ -41,7 +36,11 @@ class Video:
     WINDOW_NAME = "window"
 
     def __init__(self):
-        pass
+        self.logger = logging.getLogger(__name__)
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format="[%(levelname)s] %(filename)s:%(lineno)d: %(message)s",
+        )
 
     def initialize(self, p):
         self.path = p
@@ -64,10 +63,8 @@ class Video:
         self.videoEndFrame = None
 
         if not success:
-            print(
-                "Video failed to load. Verify file is a good video file or contact Jesse."
-            )
-            print(self.path)
+            self.logger.info("Video failed to load. Verify file is a good video file or contact Jesse.")
+            self.logger.info(self.path)
             exit(1)
 
     def getBracketROIWrapper(self):
@@ -75,9 +72,7 @@ class Video:
         return len(self.bracketROI)
 
     def getArenaROIWrapper(self):
-        self.basicArenaROI, self.arenaROIstr = self.getArenaROI2(
-            self.image, "Arena Selection"
-        )
+        self.basicArenaROI, self.arenaROIstr = self.getArenaROI2(self.image, "Arena Selection")
         return len(self.basicArenaROI)
 
     def getBeetleSelectWrapper(self):
@@ -95,8 +90,8 @@ class Video:
     def finishAndSave(self):
         cv2.destroyAllWindows()
 
-        # Print out data to show successful save
-        print(
+        # self.logger.info out data to show successful save
+        self.logger.info(
             "Processing Complete.\n\tStart Frame: {}/{}\n\tArena: {}\n\tBracket (x,y,w,h): {}".format(
                 self.startFrame, self.length, self.arenaROIstr, self.bracketROI
             )
@@ -108,7 +103,7 @@ class Video:
 
     def beetleSelect(self, img, windowName):
         img = addInstructionsToImage(img, "Click near black beetle. Enter to continue")
-        print("Click to select black beetle. Press any key to continue...", end="")
+        self.logger.info("Click to select black beetle. Press any key to continue...")
 
         class CoordinateStore:
             def __init__(self, image):
@@ -140,7 +135,7 @@ class Video:
         cv2.setMouseCallback(windowName, lambda *args: None)
         retVal = coordStore.getBlack()
         cv2.destroyWindow(windowName)
-        print("done.")
+        self.logger.info("done.")
         return retVal
 
     def getArenaROI2(self, img, windowName) -> Tuple[tuple, str]:
@@ -158,16 +153,16 @@ class Video:
             """
             Accepts a contour and converts it into a string formatted for idtrackerai
             """
-            point_lst = ["[["]
+            point_lst = ["+ Polygon ["]
             first = True
             for point in contour:
                 if not first:
-                    point_str = ",({},{})".format(point[0][0], point[0][1])
+                    point_str = ",[{},{}]".format(point[0][0], point[0][1])
                 else:
-                    point_str = "({},{})".format(point[0][0], point[0][1])
+                    point_str = "[{},{}]".format(point[0][0], point[0][1])
                     first = False
                 point_lst.append(point_str)
-            point_lst.append("]]")
+            point_lst.append("]")
             return "".join(point_lst)
 
         class MaskManager:
@@ -211,7 +206,7 @@ class Video:
         bgdModel = np.zeros((1, 65), np.float64)
         fgdModel = np.zeros((1, 65), np.float64)
 
-        print("Selecting Arena ROI...", end="")
+        self.logger.info("Selecting Arena ROI...")
         rect = (0, 0, 0, 0)
         while rect == (0, 0, 0, 0):
             rect = cv2.selectROI(
@@ -227,33 +222,27 @@ class Video:
         cv2.waitKey(1)
 
         # Initialize the contours using the rectangle we drew using selectROI
-        msk, bgdModel, fgdModel = cv2.grabCut(
-            img, mm.getMask(), rect, bgdModel, fgdModel, 3, cv2.GC_INIT_WITH_RECT
-        )
+        msk, bgdModel, fgdModel = cv2.grabCut(img, mm.getMask(), rect, bgdModel, fgdModel, 3, cv2.GC_INIT_WITH_RECT)
         mm.setMask(msk)
         contours = None
         cv2.setMouseCallback(windowName, mm.draw_circle)
 
         while 1:
             # If mask==2 or mask== 1, mask2 get 0, other wise it gets 1 as 'uint8' type.
-            mask2 = np.where((mm.getMask() == 2) | (mm.getMask() == 0), 0, 1).astype(
-                "uint8"
-            )
+            mask2 = np.where((mm.getMask() == 2) | (mm.getMask() == 0), 0, 1).astype("uint8")
             img_cut = img * mask2[:, :, np.newaxis]
 
             imgray = cv2.cvtColor(img_cut, cv2.COLOR_BGR2GRAY)
             _, thresh = cv2.threshold(imgray, 127, 255, 0)
 
             contours = None
-            find_contours_result = cv2.findContours(
-                thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
-            )
+            find_contours_result = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
             if len(find_contours_result) == 2:
                 contours = find_contours_result[0]
             elif len(find_contours_result) == 3:
                 contours = find_contours_result[1]
             else:
-                print("Unexpected findContour size!")
+                self.logger.info("Unexpected findContour size!")
 
             largest = 0
             for i in range(len(contours)):
@@ -265,12 +254,8 @@ class Video:
 
             while 1:
                 invert_mask = 1 - mm.getMask()
-                disp_img[:, :, 1] = cv2.bitwise_and(
-                    img_cut, img_cut, mask=mm.getMask() * 255
-                )[:, :, 1]
-                disp_img[:, :, 2] = cv2.bitwise_and(
-                    img_cut, img_cut, mask=invert_mask * 255
-                )[:, :, 2]
+                disp_img[:, :, 1] = cv2.bitwise_and(img_cut, img_cut, mask=mm.getMask() * 255)[:, :, 1]
+                disp_img[:, :, 2] = cv2.bitwise_and(img_cut, img_cut, mask=invert_mask * 255)[:, :, 2]
                 cv2.drawContours(disp_img, contours, largest, (255, 0, 0), 2)
                 cv2.imshow(
                     windowName,
@@ -312,7 +297,7 @@ class Video:
         cv2.setMouseCallback(windowName, lambda *args: None)
 
         cv2.destroyWindow(windowName)
-        print("done.")
+        self.logger.info("done.")
         return (rect, contourToString(contours[largest]))
 
     def getBracketROI(self, img, windowName) -> tuple:
@@ -324,7 +309,7 @@ class Video:
         Returns:
             tuple bracket - the ROI of the bracket
         """
-        print("Select the bracket....", end="")
+        self.logger.info("Select the bracket....")
         bracket = (0, 0, 0, 0)
         while bracket == (0, 0, 0, 0):
             bracket = cv2.selectROI(
@@ -336,7 +321,7 @@ class Video:
                 ),
             )
         cv2.destroyWindow(windowName)
-        print("done.")
+        self.logger.info(f"Bracket selected: {bracket}")
         return bracket
 
     def getFirstFrame(self, windowName):
@@ -351,36 +336,44 @@ class Video:
         )
 
     def autoGetFrame(self, windowName, startPoint, sensitivity, trackbarName):
-        strt = 0
+        start_brightness = 0
         velocity = 5
         self.vidcap.set(cv2.CAP_PROP_POS_FRAMES, startPoint)  # move to frame 0
 
-        def getBrightness(self, r, img):
+        def getBrightness(self, roi, img):
             def getRandX(roi):
-                return random.randint(r[0], r[0] + r[2])
+                return random.randint(roi[0], roi[0] + roi[2])
 
             def getRandY(roi):
-                return random.randint(r[1], r[1] + r[3])
+                return random.randint(roi[1], roi[1] + roi[3])
 
-            sum = 0
-            for i in range(0, 500):
-                x = getRandX(r)
-                y = getRandY(r)
-                sum = (
-                    sum + img[y, x, 0]
-                )  # I'm still not sure why x and y are swapped here
-            return sum / 500
+            sum: float = 0
+            samples: int = 500
+            for i in range(0, samples):
+                x = getRandX(roi)
+                y = getRandY(roi)
+                # self.logger.debug(f"Checking pixel ({x}, {y}) sum currently: {sum} will add {img[y, x, 0]}")
+                try:
+                    self.logger.debug(f"x: {x}, y: {y}, current sum: {sum}, will add: {img[y, x, 0]}")
+                    sum = sum + float(img[y, x, 0])
+                except RuntimeWarning as e:
+                    self.logger.debug(f"Runtime warning caught: {e}")
+
+                # I'm still not sure why x and y are swapped here
+            self.logger.debug(f"Average brightness on frame is: {sum / samples}")
+            return sum / samples
 
         success, img = self.vidcap.read()
         cv2.imshow(windowName, img)
         cv2.waitKey(1)
 
         if success:
-            strt = getBrightness(self, self.basicArenaROI, img)
+            start_brightness = getBrightness(self, self.basicArenaROI, img)
+            self.logger.debug(f"Start Brightness: {start_brightness}")
         else:
-            print("Error autodetecting brightness.")
+            self.logger.info("Error autodetecting starting brightness.")
 
-        autoDetectedFrame: int = None
+        autoDetectedFrame: Optional[int] = None
 
         def onChange(trackbarValue):
             self.vidcap.set(cv2.CAP_PROP_POS_FRAMES, startPoint + trackbarValue)
@@ -389,9 +382,7 @@ class Video:
                 windowName,
                 addInstructionsToImage(
                     img,
-                    "Selecting frame [{}/{}]".format(
-                        startPoint + trackbarValue, self.length
-                    ),
+                    "Selecting frame [{}/{}]".format(startPoint + trackbarValue, self.length),
                     "Arrow keys prev/next frame",
                     "Enter to confirm",
                     (
@@ -410,43 +401,38 @@ class Video:
 
         trackbarStart = 0
         TRACKBAR_LENGTH = 400
-        cv2.createTrackbar(
-            trackbarName, windowName, trackbarStart, TRACKBAR_LENGTH, onChange
-        )
-        print("Selecting frame...", end="")
+        cv2.createTrackbar(trackbarName, windowName, trackbarStart, TRACKBAR_LENGTH, onChange)
+        self.logger.info("Selecting frame...")
         for i in range(startPoint, startPoint + TRACKBAR_LENGTH, velocity):
             if i >= self.length - 2:
-                print("Failed auto detection, proceed manually.")
+                self.logger.info("Failed auto detection, proceed manually.")
                 break
             self.vidcap.set(cv2.CAP_PROP_POS_FRAMES, i)
             success, image = self.vidcap.read()
 
-            cv2.setTrackbarPos(
-                trackbarName, windowName, trackbarStart + (i - startPoint)
-            )
+            cv2.setTrackbarPos(trackbarName, windowName, trackbarStart + (i - startPoint))
 
-            cfrm = getBrightness(self, self.basicArenaROI, image)
-            if ((sensitivity > 1) and (cfrm > strt * sensitivity)) or (
-                (sensitivity <= 1) and (cfrm <= strt * sensitivity)
+            current_fr_brightness = getBrightness(self, self.basicArenaROI, image)
+            if ((sensitivity > 1) and (current_fr_brightness > start_brightness * sensitivity)) or (
+                (sensitivity <= 1) and (current_fr_brightness <= start_brightness * sensitivity)
             ):
                 autoDetectedFrame = cv2.getTrackbarPos(trackbarName, windowName)
 
                 # Manually call onChange once to update the frame displayed
                 onChange(cv2.getTrackbarPos(trackbarName, windowName))
-                print("Adjust or press any key to confirm Selection...")
+                self.logger.info("Adjust or press any key to confirm Selection...")
 
                 k = None
                 while not ((k == 32) or (k == 13) or (k == 36) or (k == 76)):
                     k = cv2.waitKeyEx()
-                    if k == 2424832 or k == ord(
-                        "a"
-                    ):  # left arrow on windows TODO: check on Mac
+                    self.logger.debug("Key pressed. Code: {}".format(k))
+                    if k in [2424832, ord("a"), 65361]:  # left arrow on windows, 'a' key, and linux TODO: check on Mac
                         cv2.setTrackbarPos(
                             trackbarName,
                             windowName,
                             cv2.getTrackbarPos(trackbarName, windowName) - 1,
                         )
-                    if k == 2555904 or k == ord("d"):  # right arrow on windows
+                    if k in [2555904, ord("d"), 65363]:  # right arrow on windows, 'd' key, and linux TODO: check on Mac
                         cv2.setTrackbarPos(
                             trackbarName,
                             windowName,
@@ -455,7 +441,7 @@ class Video:
 
                 # User has hit space or enter to confirm frame
                 startFrame = startPoint + cv2.getTrackbarPos(trackbarName, windowName)
-                print("Frame confirmed. {}".format(startFrame))
+                self.logger.info("Frame confirmed. {}".format(startFrame))
                 cv2.destroyWindow(windowName)
                 return startFrame
 
@@ -473,12 +459,9 @@ class Video:
         try:
             os.mkdir(target_dir)
         except OSError:
-            print(
-                "Creation of the directory %s failed, maybe it already exists..."
-                % target_dir
-            )
+            self.logger.info("Creation of the directory %s failed, maybe it already exists..." % target_dir)
         else:
-            print("Successfully created %s folder" % target_dir)
+            self.logger.info("Successfully created %s folder" % target_dir)
 
         f = open(os.path.join(target_dir, (video_id + ".json")), "w+")
 
@@ -519,20 +502,12 @@ class Video:
 
         # copy the original video file into the new directory
         copyfile(self.path, os.path.join(target_dir, os.path.basename(self.path)))
-        print(
-            "Successfully generated tracking files for {} at {}".format(
-                video_id, target_dir
-            )
-        )
+        self.logger.info("Successfully generated tracking files for {} at {}".format(video_id, target_dir))
 
         # Ding ding
-        print("\007")
+        self.logger.info("\007")
         return target_dir
 
 
 if __name__ == "__main__":
-    print(
-        "Run the processing script on GPU cluster:\npython postprocessing.py {}".format(
-            v.path
-        )
-    )
+    self.logger.info("Run the processing script on GPU cluster:\npython postprocessing.py {}".format(v.path))

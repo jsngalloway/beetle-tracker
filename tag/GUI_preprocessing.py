@@ -4,6 +4,9 @@ import cv2
 from PIL import ImageTk, Image
 from preprocessing import Video
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Runner:
@@ -18,13 +21,14 @@ class Runner:
             self.end = None
 
     def updateStartEnds(self, *args):
+        print(args)
         self.statuses.start = self.startFrameVar.get()
         self.statuses.end = self.endFrameVar.get()
         try:
             self.currentVideo.startFrame = int(self.statuses.start)
             self.currentVideo.videoEndFrame = int(self.statuses.end)
-        except:
-            print("Failure to interpret frame range")
+        except Exception as e:
+            logger.error(f"Failure to interpret frame range: {e}")
 
     def __init__(self):
         root = tk.Tk()
@@ -66,24 +70,20 @@ class Runner:
 
         self.startFrameVar = tk.StringVar()
         self.endFrameVar = tk.StringVar()
-        self.startFrameVar.trace("w", self.updateStartEnds)
-        self.endFrameVar.trace("w", self.updateStartEnds)
+        self.startFrameVar.trace_add("write", self.updateStartEnds)
+        self.endFrameVar.trace_add("write", self.updateStartEnds)
 
         self.selectStartBtn = tk.Button(
             text="Set Start", state="disabled", command=self.getFirstFrameWrapperFn
         )
         startTxt = tk.Label(text="Start Frame: ", pady=8)
-        self.startStatus = tk.Entry(
-            text="None", fg="Red", width=4, textvariable=self.startFrameVar
-        )
+        self.startStatus = tk.Entry(bg="Red", width=4, textvariable=self.startFrameVar)
 
         self.selectEndBtn = tk.Button(
             text="Set End", state="disabled", command=self.getLastFrameWrapperFn
         )
         endTxt = tk.Label(text="End Frame: ", pady=8)
-        self.endStatus = tk.Entry(
-            text="None", fg="Red", width=4, textvariable=self.endFrameVar
-        )
+        self.endStatus = tk.Entry(bg="Red", width=4, textvariable=self.endFrameVar)
 
         instructions = tk.Label(text="Select a video file to start")
 
@@ -195,11 +195,11 @@ class Runner:
                 if not ret:
                     return pickFile()
 
-            print("Loaded in video {} successfully.".format(path))
+            logger.info("Loaded in video {} successfully.".format(path))
             return path
 
         f = pickFile()
-        print(f)
+        logger.info(f)
         self.statuses.video = os.path.basename(f)
         self.updateStatuses()
         return f
@@ -238,19 +238,19 @@ class Runner:
             self.selectEndBtn["state"] = "disabled"
 
         if self.statuses.start:
-            self.startStatus["fg"] = "green"
+            self.startStatus["bg"] = "green"
             self.startFrameVar.set(str(self.statuses.start))
             self.selectBeetleBtn["state"] = "normal"
         else:
-            self.startStatus["fg"] = "red"
+            self.startStatus["bg"] = "red"
             self.startFrameVar.set("0")
             self.selectBeetleBtn["state"] = "disabled"
 
         if self.statuses.end:
-            self.endStatus["fg"] = "green"
+            self.endStatus["bg"] = "green"
             self.endFrameVar.set(str(self.statuses.end))
         else:
-            self.endStatus["fg"] = "red"
+            self.endStatus["bg"] = "red"
             self.endFrameVar.set("0")
 
         if self.statuses.beetle:
@@ -276,9 +276,13 @@ class Runner:
 
     def startFn(self, savePath):
         path = self.currentVideo.savePostProcData(savePath)
-        print("Directory generated at {}".format(path))
+        logger.info("Directory generated at {}".format(path))
         os.startfile(path)
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="[%(levelname)s] %(filename)s:%(lineno)d: %(message)s",
+    )
     r = Runner()
