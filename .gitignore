@@ -8,3 +8,5 @@ video2/*
 out-parameters.txt
 venv/
 session_*
+track_sample/*
+tag_sample/*
